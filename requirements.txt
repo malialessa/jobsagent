@@ -1,0 +1,8 @@
+Flask
+google-cloud-firestore
+vertexai
+requests
+beautifulsoup4
+slugify
+selenium
+gunicorn
