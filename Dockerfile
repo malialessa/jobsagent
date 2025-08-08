@@ -1,14 +1,8 @@
-# Dockerfile Otimizado e Completo
+# Dockerfile Unificado para ambos os serviços
 
 # Etapa 1: Build - Instala as dependências do sistema e do Python
-# Usar uma imagem de base mais recente para maior compatibilidade.
 FROM python:3.11-slim as build-stage
-
-# Define o diretório de trabalho dentro do container
 WORKDIR /app
-
-# Instala as dependências do sistema necessárias para o Google Chrome, Chromedriver e outras ferramentas.
-# Os pacotes libindicator7 e libappindicator1 foram removidos pois não estão disponíveis.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
@@ -49,47 +43,34 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     lsb-release \
     xdg-utils \
     && rm -rf /var/lib/apt/lists/*
-
-# Instala o Google Chrome usando o método oficial "Chrome for Testing".
-# Esta abordagem garante compatibilidade perfeita entre o Chrome e o Chromedriver.
-# A versão 139.0.7258.66 é a mais recente estável até o momento.
 RUN CHROME_VERSION="139.0.7258.66" && \
     wget -O chrome-linux64.zip "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${CHROME_VERSION}/linux64/chrome-linux64.zip" && \
     unzip chrome-linux64.zip && \
     mv chrome-linux64/chrome /usr/bin/google-chrome && \
     chmod +x /usr/bin/google-chrome && \
     rm -rf chrome-linux64.zip chrome-linux64
-
-# Instala o Chromedriver compatível com a versão do Chrome.
 RUN CHROME_VERSION="139.0.7258.66" && \
     wget -O chromedriver-linux64.zip "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${CHROME_VERSION}/linux64/chromedriver-linux64.zip" && \
     unzip chromedriver-linux64.zip && \
     mv chromedriver-linux64/chromedriver /usr/bin/chromedriver && \
     chmod +x /usr/bin/chromedriver && \
     rm -rf chromedriver-linux64.zip chromedriver-linux64
-
-# Copia o arquivo requirements.txt e instala as dependências Python de forma otimizada
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
-
-# Copia todo o código da sua aplicação (incluindo main.py, worker.py, utils.py)
 COPY . .
 
 # Etapa 2: Final - Imagem de execução otimizada
-# Usa uma nova imagem base mais enxuta para a imagem final, mas sem as ferramentas de build
 FROM python:3.11-slim
-
-# Define o diretório de trabalho
 WORKDIR /app
-
-# Copia os arquivos necessários e os executáveis da etapa de build
 COPY --from=build-stage /usr/bin/google-chrome /usr/bin/google-chrome
 COPY --from=build-stage /usr/bin/chromedriver /usr/bin/chromedriver
 COPY --from=build-stage /app /app
-
-# Define a porta que a aplicação vai escutar
 EXPOSE 8080
 
-# Comando de execução padrão para o Cloud Run Job
-# Ele iniciará o servidor Gunicorn, que por sua vez executa o worker.py
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "worker:app"]
+# Este é o comando de execução padrão que o Cloud Run vai usar.
+# Para o serviço de Orquestrador:
+# CMD ["gunicorn", "--bind", "0.0.0.0:8080", "main:app"]
+#
+# Para o serviço de Worker (Job):
+# O comando do job não precisa de um servidor HTTP.
+# CMD ["python", "worker.py"]
