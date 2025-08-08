@@ -29,7 +29,7 @@ APPS_SCRIPT_URL = os.environ.get('APPS_SCRIPT_URL')
 
 # --- Clientes GCP ---
 db = firestore.Client(project=PROJECT_ID)
-model = GenerativeModel("gemini-1.5-flash")
+model = GenerativeModel("gemini-2.5-flash")
 app = Flask(__name__)
 
 # --- Funções de Coleta de Vagas ---
