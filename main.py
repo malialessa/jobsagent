@@ -8,7 +8,7 @@ FROM python:3.11-slim as build-stage
 WORKDIR /app
 
 # Instala as dependências do sistema necessárias para o Google Chrome, Chromedriver e outras ferramentas.
-# O pacote 'ca-certificates' é essencial para requisições SSL.
+# Os pacotes libindicator7 e libappindicator1 foram removidos pois não estão disponíveis.
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates \
     curl \
@@ -16,7 +16,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     unzip \
     wget \
     libxss1 \
-    libappindicator1 \
     fonts-liberation \
     libnss3 \
     gconf-service \
@@ -77,7 +76,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY . .
 
 # Etapa 2: Final - Imagem de execução otimizada
-# Usa uma nova imagem base mais enxuta para a imagem final, sem as ferramentas de build
+# Usa uma nova imagem base mais enxuta para a imagem final, mas sem as ferramentas de build
 FROM python:3.11-slim
 
 # Define o diretório de trabalho
