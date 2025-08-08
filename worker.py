@@ -16,7 +16,6 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
-import feedparser
 
 # Importa funções compartilhadas do módulo utils
 from utils import update_log, clean_html, get_user_settings, filter_jobs_by_relevance
@@ -112,7 +111,7 @@ def scrape_with_selenium(driver, company, keywords, log_ref):
                     link = job_elem.find_element(By.CSS_SELECTOR, "a").get_attribute('href')
                     jobs.append({"job_id": sha256(link.encode()).hexdigest(), "title": title, "company": company, "link": link, "description": ""})
             
-            # ... (Demais lógicas para Salesforce e Amazon aqui)
+            # TODO: Implementar lógica de scraping para Salesforce e Amazon
             
             update_log(log_ref, f"[Selenium {company}] Encontradas {len(jobs)} vagas para a palavra-chave '{keyword}'.")
 
@@ -127,14 +126,14 @@ def collect_all_jobs(settings, rapidapi_key, log_ref):
     """Centraliza a coleta de vagas de todas as fontes."""
     all_jobs = []
     
-    # 1. Coleta de APIs públicas e RSS
+    update_log(log_ref, "Iniciando a coleta de vagas de todas as fontes.")
+    
     all_jobs.extend(scrape_google_jobs(log_ref))
     
-    # Adicione aqui outras fontes de API, como JSearch se for necessário
+    # TODO: Descomentar ou implementar a coleta do JSearch se necessário
     # if rapidapi_key:
     #     all_jobs.extend(scrape_jsearch_jobs(settings['job_sites'], rapidapi_key, log_ref))
         
-    # 2. Coleta com Selenium
     driver = init_selenium_driver(log_ref)
     if driver:
         for site in settings.get('job_sites', []):
@@ -149,17 +148,10 @@ def collect_all_jobs(settings, rapidapi_key, log_ref):
     update_log(log_ref, f"[Coleta Central] Coleta finalizada. {len(unique_jobs)} vagas únicas encontradas.")
     return list(unique_jobs)
     
-def enrich_job_data(job_data, rapidapi_key, log_ref):
-    """Enriquece uma única vaga com detalhes usando a API JSearch."""
-    # Função removida para evitar duplicação. O enriquecimento será feito dentro do loop principal.
-    # Esta função está aqui apenas para ilustrar, mas não será usada diretamente no loop final.
-    pass
-
 def analyze_and_generate(job_data, profile_text, log_ref):
     """Usa o Gemini para analisar o fit e gerar o conteúdo do currículo."""
     update_log(log_ref, f"[GEMINI] Analisando vaga '{job_data['title']}'...")
     
-    # O seu prompt completo da Gemini
     prompt = f"""
     Você é um assistente especializado em gerar currículos. Preencha os placeholders do modelo abaixo com base no perfil da candidata e na vaga de referência.
 
@@ -194,7 +186,6 @@ def analyze_and_generate(job_data, profile_text, log_ref):
         response = model.generate_content(prompt, generation_config=generation_config)
         response_json = json.loads(response.text)
         
-        # Garante que todos os campos existem, mesmo que vazios
         normalized_data = {
             'fit_score': int(response_json.get('fit_score', 0)),
             'resume': response_json.get('resume', ''),
@@ -223,7 +214,6 @@ def generate_resume_google_docs(job_data, analysis_result, log_ref):
         "resume_data": analysis_result
     }
     
-    # Implementação de retry com backoff exponencial
     retries = 3
     for i in range(retries):
         try:
@@ -239,7 +229,7 @@ def generate_resume_google_docs(job_data, analysis_result, log_ref):
                 return None
         except requests.exceptions.RequestException as e:
             update_log(log_ref, f"Erro de comunicação com o Apps Script (Tentativa {i+1}/{retries}): {e}")
-            time.sleep(2 ** i) # Backoff exponencial
+            time.sleep(2 ** i)
     
     update_log(log_ref, "Falha na geração do currículo após múltiplas tentativas.")
     return None
@@ -275,7 +265,6 @@ def scraping_job_endpoint():
                 update_log(log_ref, f"PULANDO: Vaga '{job.get('title')}' já processada.")
                 continue
 
-            # Valida a descrição antes de enviar para o Gemini
             if not job.get('description') or len(job.get('description')) < 50:
                 update_log(log_ref, f"AVISO: Vaga '{job.get('title')}' ignorada por ter descrição incompleta.")
                 doc_ref.set({
