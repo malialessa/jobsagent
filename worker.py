@@ -5,7 +5,7 @@ import os
 import requests
 import logging
 import json
-import time # Módulo time importado
+import time
 from google.cloud import firestore
 from vertexai.generative_models import GenerativeModel, GenerationConfig
 from datetime import datetime
@@ -16,6 +16,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
+import feedparser # Mantido para RSS, caso seja implementado
+from flask import Flask, request
 
 # Importa funções compartilhadas do módulo utils
 from utils import update_log, clean_html, get_user_settings, filter_jobs_by_relevance
@@ -29,11 +31,10 @@ APPS_SCRIPT_URL = os.environ.get('APPS_SCRIPT_URL')
 
 # --- Clientes GCP ---
 db = firestore.Client(project=PROJECT_ID)
-model = GenerativeModel("gemini-2.5-flash")
+model = GenerativeModel("gemini-1.5-flash")
 app = Flask(__name__)
 
 # --- Funções de Coleta de Vagas ---
-
 def init_selenium_driver(log_ref):
     """Inicializa o WebDriver do Selenium em modo headless."""
     update_log(log_ref, "Iniciando o Selenium WebDriver...")
