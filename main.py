@@ -8,9 +8,8 @@ import uuid
 import logging
 from flask import Flask, request, jsonify
 from google.cloud import firestore
-
-# Importa funções compartilhadas do módulo utils
-from utils import update_log
+from datetime import datetime
+from utils import update_log # Importa a função de log
 
 # --- Configurações do Ambiente (para o Serviço) ---
 PROJECT_ID = os.environ.get('GCP_PROJECT', 'arquitetodadivulgacao')
