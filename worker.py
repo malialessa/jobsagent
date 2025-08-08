@@ -5,6 +5,7 @@ import os
 import requests
 import logging
 import json
+import time # Módulo time importado
 from google.cloud import firestore
 from vertexai.generative_models import GenerativeModel, GenerationConfig
 from datetime import datetime
@@ -14,8 +15,8 @@ from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
-from selenium.common.exceptions import TimeoutException, NoSuchElementException
-from flask import Flask, request
+from selenium.common.exceptions import TimeoutException, NoSuchElementException, WebDriverException
+import feedparser
 
 # Importa funções compartilhadas do módulo utils
 from utils import update_log, clean_html, get_user_settings, filter_jobs_by_relevance
@@ -47,16 +48,38 @@ def init_selenium_driver(log_ref):
         driver = webdriver.Chrome(options=chrome_options)
         update_log(log_ref, "Selenium WebDriver inicializado com sucesso.")
         return driver
-    except Exception as e:
+    except WebDriverException as e:
         update_log(log_ref, f"ERRO ao inicializar o Selenium: {e}")
         return None
+
+def scrape_google_jobs(log_ref):
+    """Busca vagas diretamente da API Greenhouse do Google."""
+    update_log(log_ref, "[API Google] Iniciando busca de vagas no Google Careers...")
+    url = "https://boards-api.greenhouse.io/v1/boards/google/jobs?content=true"
+    try:
+        response = requests.get(url, timeout=20)
+        response.raise_for_status()
+        data = response.json()
+        jobs = []
+        for job in data.get('jobs', []):
+            jobs.append({
+                "job_id": str(job.get('id')),
+                "title": job.get('title'),
+                "company": "Google",
+                "description": clean_html(job.get('content', '')),
+                "link": job.get('absolute_url')
+            })
+        update_log(log_ref, f"[API Google] Coleta finalizada. Encontradas {len(jobs)} vagas.")
+        return jobs
+    except requests.exceptions.RequestException as e:
+        update_log(log_ref, f"[API Google] ERRO: Não foi possível buscar vagas. {e}")
+        return []
 
 def scrape_with_selenium(driver, company, keywords, log_ref):
     """Coleta vagas de uma empresa específica usando Selenium."""
     update_log(log_ref, f"[Selenium] Iniciando busca de vagas para {company}...")
     jobs = []
     
-    # Mapeamento de empresas para suas URLs de busca de vagas
     search_urls = {
         "microsoft": "https://careers.microsoft.com/v2/global/en/search",
         "salesforce": "https://careers.salesforce.com/jobs/search",
@@ -75,7 +98,7 @@ def scrape_with_selenium(driver, company, keywords, log_ref):
         try:
             driver.get(url)
             
-            # Lógica específica para cada site (usando seletores mais robustos, se possível)
+            # Lógica específica para cada site
             if company.lower() == "microsoft":
                 search_input = WebDriverWait(driver, 10).until(
                     EC.presence_of_element_located((By.ID, "job-search-hero-search-input"))
@@ -104,23 +127,66 @@ def collect_all_jobs(settings, rapidapi_key, log_ref):
     """Centraliza a coleta de vagas de todas as fontes."""
     all_jobs = []
     
-    # ... (código para coletar de outras APIs, como Google Careers e JSearch, aqui)
+    # 1. Coleta de APIs públicas e RSS
+    all_jobs.extend(scrape_google_jobs(log_ref))
+    
+    # Adicione aqui outras fontes de API, como JSearch se for necessário
+    # if rapidapi_key:
+    #     all_jobs.extend(scrape_jsearch_jobs(settings['job_sites'], rapidapi_key, log_ref))
         
+    # 2. Coleta com Selenium
     driver = init_selenium_driver(log_ref)
     if driver:
         for site in settings.get('job_sites', []):
             if site['name'].lower() in ['microsoft', 'amazon', 'salesforce']:
                 all_jobs.extend(scrape_with_selenium(driver, site['name'], site['keywords'], log_ref))
         driver.quit()
+    else:
+        update_log(log_ref, "Selenium desativado devido a erro de inicialização.")
 
-    return list(all_jobs)
+    unique_jobs = {job['job_id']: job for job in all_jobs}.values()
+    
+    update_log(log_ref, f"[Coleta Central] Coleta finalizada. {len(unique_jobs)} vagas únicas encontradas.")
+    return list(unique_jobs)
+    
+def enrich_job_data(job_data, rapidapi_key, log_ref):
+    """Enriquece uma única vaga com detalhes usando a API JSearch."""
+    # Função removida para evitar duplicação. O enriquecimento será feito dentro do loop principal.
+    # Esta função está aqui apenas para ilustrar, mas não será usada diretamente no loop final.
+    pass
 
 def analyze_and_generate(job_data, profile_text, log_ref):
     """Usa o Gemini para analisar o fit e gerar o conteúdo do currículo."""
     update_log(log_ref, f"[GEMINI] Analisando vaga '{job_data['title']}'...")
     
+    # O seu prompt completo da Gemini
     prompt = f"""
-    // (O seu prompt da Gemini, mantido aqui)
+    Você é um assistente especializado em gerar currículos. Preencha os placeholders do modelo abaixo com base no perfil da candidata e na vaga de referência.
+
+    **Modelo de Currículo:**
+    Amália Silva
+    [Resume]
+    Cuiabá, Mato Grosso, Brasil | +55 65 99982-5428 | amaliaalessa@gmail.com | linkedin.com/in/amaliaasilva
+    PROFESSIONAL SUMMARY
+    [Summary]
+    EXPERIENCES
+    Xertica.ai | Sales & Documentation Analytics | Feb 2025 – Present
+    [XerticaSummary]
+    Coreplan Gestão e Tecnologia | Project Manager | Feb 2024 – Feb 2025
+    [CoreplanSummary]
+    PGE/MT – State Attorney General’s Office | CIO | May 2022 – Feb 2024
+    [PGESummary]
+    SKILLS
+    [Skills]
+    
+    **Vaga de Referência:**
+    Título: {job_data.get('title', 'N/A')}
+    Descrição: {job_data.get('description', 'N/A')}
+
+    **Perfil da candidata:**
+    {profile_text}
+    
+    Formate a resposta como um objeto JSON com as chaves: "fit_score" (número de 1 a 10), "resume", "summary", "xertica_summary", "coreplan_summary", "pge_summary", "skills".
     """
     
     try:
@@ -128,16 +194,25 @@ def analyze_and_generate(job_data, profile_text, log_ref):
         response = model.generate_content(prompt, generation_config=generation_config)
         response_json = json.loads(response.text)
         
-        return {
+        # Garante que todos os campos existem, mesmo que vazios
+        normalized_data = {
             'fit_score': int(response_json.get('fit_score', 0)),
-            # ... (outros campos)
+            'resume': response_json.get('resume', ''),
+            'summary': response_json.get('summary', ''),
+            'xertica_summary': response_json.get('xertica_summary', ''),
+            'coreplan_summary': response_json.get('coreplan_summary', ''),
+            'pge_summary': response_json.get('pge_summary', ''),
+            'skills': response_json.get('skills', '')
         }
+
+        update_log(log_ref, f"[GEMINI] Análise concluída. Fit Score: {normalized_data['fit_score']}")
+        return normalized_data
     except Exception as e:
         update_log(log_ref, f"[GEMINI] Erro ao chamar a API ou processar JSON: {e}")
         return {"fit_score": 0, "error": str(e)}
 
 def generate_resume_google_docs(job_data, analysis_result, log_ref):
-    """Envia uma requisição ao Google Apps Script para criar um Google Docs."""
+    """Envia uma requisição ao Google Apps Script para criar um Google Docs com retries."""
     if not APPS_SCRIPT_URL:
         update_log(log_ref, "URL do Apps Script não configurada.")
         return None
@@ -148,21 +223,28 @@ def generate_resume_google_docs(job_data, analysis_result, log_ref):
         "resume_data": analysis_result
     }
     
-    try:
-        response = requests.post(APPS_SCRIPT_URL, json=payload, timeout=30)
-        response.raise_for_status()
-        result = response.json()
-        doc_url = result.get('docUrl')
-        if doc_url:
-            update_log(log_ref, f"Currículo gerado com sucesso: {doc_url}")
-            return doc_url
-        else:
-            update_log(log_ref, f"Erro ao gerar o currículo via Apps Script: {result.get('error', 'Erro desconhecido')}")
-            return None
-    except requests.exceptions.RequestException as e:
-        update_log(log_ref, f"Erro de comunicação com o Apps Script: {e}")
-        return None
+    # Implementação de retry com backoff exponencial
+    retries = 3
+    for i in range(retries):
+        try:
+            response = requests.post(APPS_SCRIPT_URL, json=payload, timeout=30)
+            response.raise_for_status()
+            result = response.json()
+            doc_url = result.get('docUrl')
+            if doc_url:
+                update_log(log_ref, f"Currículo gerado com sucesso: {doc_url}")
+                return doc_url
+            else:
+                update_log(log_ref, f"Erro ao gerar o currículo via Apps Script: {result.get('error', 'Erro desconhecido')}")
+                return None
+        except requests.exceptions.RequestException as e:
+            update_log(log_ref, f"Erro de comunicação com o Apps Script (Tentativa {i+1}/{retries}): {e}")
+            time.sleep(2 ** i) # Backoff exponencial
+    
+    update_log(log_ref, "Falha na geração do currículo após múltiplas tentativas.")
+    return None
 
+# --- Rota principal para o Cloud Run Job ---
 @app.route('/', methods=['POST'])
 def scraping_job_endpoint():
     request_data = request.get_json(silent=True)
@@ -173,8 +255,10 @@ def scraping_job_endpoint():
         update_log(log_ref, "Cloud Run Job de scraping iniciado.")
         
         settings = get_user_settings()
+        amalia_profile = settings.get('profile', '')
+        min_fit_score = settings.get('min_fit_score', 8)
         
-        all_found_jobs = collect_all_jobs(settings, RAPIDAPI_KEY, log_ref)
+        all_found_jobs = collect_all_jobs(settings, os.environ.get('RAPIDAPI_KEY'), log_ref)
         relevant_jobs = filter_jobs_by_relevance(all_found_jobs, log_ref)
         
         if not relevant_jobs:
@@ -183,41 +267,51 @@ def scraping_job_endpoint():
             return '', 200
         
         for job in relevant_jobs:
-            # Hash mais robusto
-            job_hash_data = f"{job['title']}_{job['company']}_{job['link']}"
+            job_hash_data = f"{job.get('title', '')}_{job.get('company', '')}_{job.get('link', '')}"
             job_hash = sha256(job_hash_data.encode()).hexdigest()
             
-            if db.collection(FIRESTORE_COLLECTION_JOBS).document(job_hash).get().exists:
-                update_log(log_ref, f"PULANDO: Vaga '{job['title']}' já processada.")
-                continue
-            
-            # Checagem de descrição vazia
-            if not job.get('description'):
-                update_log(log_ref, f"AVISO: Vaga '{job['title']}' ignorada por ter descrição vazia.")
+            doc_ref = db.collection(FIRESTORE_COLLECTION_JOBS).document(job_hash)
+            if doc_ref.get().exists:
+                update_log(log_ref, f"PULANDO: Vaga '{job.get('title')}' já processada.")
                 continue
 
-            analysis = analyze_and_generate(job, settings.get('profile', ''), log_ref)
+            # Valida a descrição antes de enviar para o Gemini
+            if not job.get('description') or len(job.get('description')) < 50:
+                update_log(log_ref, f"AVISO: Vaga '{job.get('title')}' ignorada por ter descrição incompleta.")
+                doc_ref.set({
+                    'timestamp': firestore.SERVER_TIMESTAMP,
+                    'job_title': job.get('title', 'N/A'),
+                    'company': job.get('company', 'N/A'),
+                    'status': 'descartada_por_desc_incompleta'
+                })
+                continue
+
+            analysis = analyze_and_generate(job, amalia_profile, log_ref)
             
-            doc_ref = db.collection(FIRESTORE_COLLECTION_JOBS).document(job_hash)
             data = {
                 'timestamp': firestore.SERVER_TIMESTAMP,
-                'job_title': job['title'], 
-                'company': job['company'],
-                'job_link': job['link'],
+                'job_title': job.get('title', 'N/A'), 
+                'company': job.get('company', 'N/A'),
+                'job_link': job.get('link', 'N/A'),
                 'fit_score': analysis.get('fit_score', 0),
                 'resume_summary': analysis.get('summary', 'N/A'),
                 'resume_url': None,
                 'status': 'pendente'
             }
-
-            if analysis.get('fit_score', 0) >= settings.get('min_fit_score', 8):
+            
+            if analysis.get('fit_score', 0) >= min_fit_score:
                 resume_url = generate_resume_google_docs(job, analysis, log_ref)
-                data['resume_url'] = resume_url
+                if resume_url:
+                    data['resume_url'] = resume_url
+                else:
+                    data['status'] = 'erro_cv'
+                    update_log(log_ref, f"ERRO: Falha crítica ao gerar currículo para '{job.get('title')}' após retries.")
             else:
-                update_log(log_ref, f"BAIXO FIT ({data['fit_score']}/10): Descartando vaga '{job['title']}'.")
+                data['status'] = 'descartada'
+                update_log(log_ref, f"BAIXO FIT ({data['fit_score']}/10): Descartando vaga '{job.get('title')}'.")
             
             doc_ref.set(data)
-            update_log(log_ref, f"Vaga e CV salvos no Firestore.")
+            update_log(log_ref, f"Vaga salva no Firestore com status: {data['status']}.")
             
             time.sleep(2)
             
