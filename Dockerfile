@@ -52,8 +52,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Instala o Google Chrome usando o método oficial "Chrome for Testing".
 # Esta abordagem garante compatibilidade perfeita entre o Chrome e o Chromedriver.
-# A versão 127.0.6533.15 é a mais recente estável até o momento.
-RUN CHROME_VERSION="127.0.6533.15" && \
+# A versão 139.0.7258.66 é a mais recente estável até o momento.
+RUN CHROME_VERSION="139.0.7258.66" && \
     wget -O chrome-linux64.zip "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${CHROME_VERSION}/linux64/chrome-linux64.zip" && \
     unzip chrome-linux64.zip && \
     mv chrome-linux64/chrome /usr/bin/google-chrome && \
@@ -61,7 +61,7 @@ RUN CHROME_VERSION="127.0.6533.15" && \
     rm -rf chrome-linux64.zip chrome-linux64
 
 # Instala o Chromedriver compatível com a versão do Chrome.
-RUN CHROME_VERSION="127.0.6533.15" && \
+RUN CHROME_VERSION="139.0.7258.66" && \
     wget -O chromedriver-linux64.zip "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${CHROME_VERSION}/linux64/chromedriver-linux64.zip" && \
     unzip chromedriver-linux64.zip && \
     mv chromedriver-linux64/chromedriver /usr/bin/chromedriver && \
