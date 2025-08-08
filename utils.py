@@ -4,6 +4,8 @@
 import os
 import json
 import logging
+import feedparser
+import requests
 from datetime import datetime
 from google.cloud import firestore
 from bs4 import BeautifulSoup
@@ -28,11 +30,13 @@ DEFAULT_NOTIF_EMAIL = "seu.email@exemplo.com"
 DEFAULT_MIN_FIT_SCORE = 8
 
 def update_log(log_ref, message):
-    """Envia uma mensagem de log para o console e para o Firestore."""
-    logging.info(message)
+    """Envia uma mensagem de log para o console e para o Firestore com data e hora."""
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    full_message = f"[{timestamp}] {message}"
+    logging.info(full_message)
     if log_ref:
         log_ref.update({
-            'logs': firestore.ArrayUnion([f"[{datetime.now().strftime('%H:%M:%S')}] {message}"])
+            'logs': firestore.ArrayUnion([full_message])
         })
 
 def clean_html(content):
@@ -73,6 +77,8 @@ def filter_jobs_by_relevance(jobs, log_ref):
         
         if is_not_too_technical and is_relevant_profile and is_brazil_friendly:
             filtered_jobs.append(job)
+        else:
+            update_log(log_ref, f"AVISO: Vaga '{job.get('title', 'N/A')}' filtrada por não ser relevante.")
 
     update_log(log_ref, f"Filtro de relevância aplicado. {len(filtered_jobs)} vagas restantes.")
     return filtered_jobs
