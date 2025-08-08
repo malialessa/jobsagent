@@ -1,53 +1,96 @@
-# main.py
-# Cloud Run Service - Orquestrador de jobs.
+# Dockerfile Otimizado e Completo
 
-import os
-import json
-import requests
-import uuid
-import logging
-from flask import Flask, request, jsonify
-from google.cloud import firestore
-from datetime import datetime
-from utils import update_log # Importa a função de log
+# Etapa 1: Build - Instala as dependências do sistema e do Python
+# Usar uma imagem de base mais recente para maior compatibilidade.
+FROM python:3.11-slim as build-stage
 
-# --- Configurações do Ambiente (para o Serviço) ---
-PROJECT_ID = os.environ.get('GCP_PROJECT', 'arquitetodadivulgacao')
-FIRESTORE_COLLECTION_LOGS = 'agent_logs'
-CLOUD_RUN_JOB_URL = os.environ.get('CLOUD_RUN_JOB_URL')
+# Define o diretório de trabalho dentro do container
+WORKDIR /app
 
-# --- Clientes GCP ---
-db = firestore.Client(project=PROJECT_ID)
-app = Flask(__name__)
+# Instala as dependências do sistema necessárias para o Google Chrome, Chromedriver e outras ferramentas.
+# O pacote 'ca-certificates' é essencial para requisições SSL.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    gnupg \
+    unzip \
+    wget \
+    libxss1 \
+    libappindicator1 \
+    fonts-liberation \
+    libnss3 \
+    gconf-service \
+    libasound2 \
+    libatk1.0-0 \
+    libcairo2 \
+    libgdk-pixbuf2.0-0 \
+    libgtk-3-0 \
+    libnspr4 \
+    libgconf-2-4 \
+    libx11-xcb1 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libxi6 \
+    libxrandr2 \
+    libcups2 \
+    libdbus-1-3 \
+    libdrm2 \
+    libgbm1 \
+    libgcc1 \
+    libglib2.0-0 \
+    libglu1-mesa \
+    libxkbcommon0 \
+    libxkbfile1 \
+    libxkbfile1 \
+    libxrandr2 \
+    libxss1 \
+    libxtst6 \
+    libxxf86vm1 \
+    lsb-release \
+    xdg-utils \
+    && rm -rf /var/lib/apt/lists/*
 
-@app.route('/', methods=['POST'])
-def run_agent_endpoint():
-    try:
-        request_data = request.get_json(silent=True)
-        log_id = request_data.get('log_id', str(uuid.uuid4()))
-        log_ref = db.collection(FIRESTORE_COLLECTION_LOGS).document(log_id)
+# Instala o Google Chrome usando o método oficial "Chrome for Testing".
+# Esta abordagem garante compatibilidade perfeita entre o Chrome e o Chromedriver.
+# A versão 127.0.6533.15 é a mais recente estável até o momento.
+RUN CHROME_VERSION="127.0.6533.15" && \
+    wget -O chrome-linux64.zip "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${CHROME_VERSION}/linux64/chrome-linux64.zip" && \
+    unzip chrome-linux64.zip && \
+    mv chrome-linux64/chrome /usr/bin/google-chrome && \
+    chmod +x /usr/bin/google-chrome && \
+    rm -rf chrome-linux64.zip chrome-linux64
 
-        log_doc = log_ref.get()
-        if log_doc.exists and log_doc.to_dict().get('status') == 'running':
-            return jsonify({"message": "O agente já está em execução. Por favor, aguarde.", "log_id": log_id}), 409
+# Instala o Chromedriver compatível com a versão do Chrome.
+RUN CHROME_VERSION="127.0.6533.15" && \
+    wget -O chromedriver-linux64.zip "https://edgedl.me.gvt1.com/edgedl/chrome/chrome-for-testing/${CHROME_VERSION}/linux64/chromedriver-linux64.zip" && \
+    unzip chromedriver-linux64.zip && \
+    mv chromedriver-linux64/chromedriver /usr/bin/chromedriver && \
+    chmod +x /usr/bin/chromedriver && \
+    rm -rf chromedriver-linux64.zip chromedriver-linux64
 
-        log_ref.set({'status': 'running', 'timestamp': firestore.SERVER_TIMESTAMP, 'logs': []})
-        update_log(log_ref, "Agente de Empregos iniciado por requisição HTTP. Acionando Cloud Run Job...")
-        
-        if not CLOUD_RUN_JOB_URL:
-             raise ValueError("URL do Cloud Run Job de scraping não está configurada.")
-        
-        response = requests.post(CLOUD_RUN_JOB_URL, json={'log_id': log_id}, timeout=10)
-        response.raise_for_status()
+# Copia o arquivo requirements.txt e instala as dependências Python de forma otimizada
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
 
-        return jsonify({"message": "Agente iniciado com sucesso. Verifique os logs para acompanhar o progresso.", "log_id": log_id}), 202
+# Copia todo o código da sua aplicação (incluindo main.py, worker.py, utils.py)
+COPY . .
 
-    except Exception as e:
-        error_message = f"ERRO FATAL no serviço principal: {e}"
-        logging.error(error_message)
-        if 'log_ref' in locals():
-            log_ref.update({'status': 'error', 'error_message': error_message})
-        return jsonify({"message": error_message}), 500
+# Etapa 2: Final - Imagem de execução otimizada
+# Usa uma nova imagem base mais enxuta para a imagem final, sem as ferramentas de build
+FROM python:3.11-slim
 
-if __name__ == "__main__":
-    app.run(debug=True, host='0.0.0.0', port=int(os.environ.get('PORT', 8080)))
+# Define o diretório de trabalho
+WORKDIR /app
+
+# Copia os arquivos necessários e os executáveis da etapa de build
+COPY --from=build-stage /usr/bin/google-chrome /usr/bin/google-chrome
+COPY --from=build-stage /usr/bin/chromedriver /usr/bin/chromedriver
+COPY --from=build-stage /app /app
+
+# Define a porta que a aplicação vai escutar
+EXPOSE 8080
+
+# Comando de execução padrão para o Cloud Run Job
+# Ele iniciará o servidor Gunicorn, que por sua vez executa o worker.py
+CMD ["gunicorn", "--bind", "0.0.0.0:8080", "worker:app"]
