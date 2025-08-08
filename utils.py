@@ -4,8 +4,6 @@
 import os
 import json
 import logging
-import feedparser
-import requests
 from datetime import datetime
 from google.cloud import firestore
 from bs4 import BeautifulSoup
