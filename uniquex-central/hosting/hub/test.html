@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Teste HubAmalia</title>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <style>
+    body { font-family: sans-serif; padding: 40px; background: #f0f0f0; }
+    .container { background: white; padding: 40px; border-radius: 12px; max-width: 600px; margin: 0 auto; }
+    button { padding: 12px 24px; background: #4f46e5; color: white; border: none; border-radius: 8px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Teste HubAmalia</h1>
+    <p id="status">Inicializando...</p>
+    <button onclick="testLogin()">Testar Login</button>
+  </div>
+  
+  <script>
+    console.log('Script iniciado');
+    
+    const firebaseConfig = {
+      apiKey: "AIzaSyA43C0ZrG7F_hUdue0-uG24WPgLkQkNQc0",
+      authDomain: "sharp-footing-475513-c7.firebaseapp.com",
+      projectId: "sharp-footing-475513-c7",
+      storageBucket: "sharp-footing-475513-c7.appspot.com",
+      messagingSenderId: "995790591545",
+      appId: "1:995790591545:web:9e369cc92784ddc7b85fe8"
+    };
+    
+    try {
+      firebase.initializeApp(firebaseConfig);
+      document.getElementById('status').textContent = '✅ Firebase inicializado!';
+      console.log('Firebase OK');
+    } catch(e) {
+      document.getElementById('status').textContent = '❌ Erro: ' + e.message;
+      console.error('Firebase erro:', e);
+    }
+    
+    function testLogin() {
+      alert('Firebase está funcionando!');
+    }
+  </script>
+</body>
+</html>

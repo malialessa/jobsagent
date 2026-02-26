@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="pt-br" class="h-full bg-gray-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clínica IA - Triagem</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <!-- IONICONS -->
+    <script type="module" src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.esm.js"></script>
+    <script nomodule src="https://unpkg.com/ionicons@7.1.0/dist/ionicons/ionicons.js"></script>
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        h1, h2, h3 { font-family: 'Quicksand', sans-serif; font-weight: 700; }
+        .brand-gradient { background: linear-gradient(to right, #0E7490, #10B981); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .card-hover-effect:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); }
+        .card-hover-effect { transition: all 0.2s ease-in-out; }
+        :root { --color-primary-teal: #0E7490; --color-secondary-green: #10B981; }
+        .text-primary-teal { color: var(--color-primary-teal); }
+        .bg-primary-teal { background-color: var(--color-primary-teal); }
+        .border-primary-teal { border-color: var(--color-primary-teal); }
+        .modal-backdrop { position: fixed; inset: 0; background-color: rgba(0, 0, 0, 0.5); display: flex; align-items: center; justify-content: center; z-index: 100; opacity: 0; transition: opacity 0.3s ease; pointer-events: none; }
+        .modal-backdrop.visible { opacity: 1; pointer-events: auto; }
+        .modal-content { background: white; border-radius: 0.75rem; padding: 1.5rem; width: 90%; max-width: 48rem; max-height: 90vh; overflow-y: auto; transform: scale(0.95); transition: transform 0.3s ease; }
+        .modal-backdrop.visible .modal-content { transform: scale(1); }
+        .modal-close-btn { position: absolute; top: 0.75rem; right: 0.75rem; color: #9ca3af; cursor: pointer; font-size: 1.8rem; }
+        .modal-close-btn:hover { color: #1f2937; }
+        .icon { font-size: 1.5rem; line-height: 1; vertical-align: middle; }
+        .chat-bubble { padding: 0.75rem 1rem; border-radius: 0.75rem; max-width: 80%; word-wrap: break-word; }
+        .chat-bubble.user { background-color: var(--color-primary-teal); color: white; border-bottom-right-radius: 0.25rem; align-self: flex-end; }
+        .chat-bubble.ia { background-color: #f3f4f6; color: #1f2937; border: 1px solid #e5e7eb; border-bottom-left-radius: 0.25rem; align-self: flex-start; }
+        .prose-ia h3 { font-family: 'Quicksand', sans-serif; color: var(--color-primary-teal); font-size: 1.1rem; margin-top: 0.75rem; margin-bottom: 0.25rem; }
+        .prose-ia ul { list-style-type: disc; padding-left: 1.25rem; margin-top: 0.5rem; }
+        .prose-ia strong { color: var(--color-primary-teal); }
+        .prose-ia .fontes { font-size: 0.75rem; color: #6b7280; margin-top: 0.75rem; border-top: 1px dashed #d1d5db; padding-top: 0.5rem; }
+        .urgency-high { border-left: 4px solid #ef4444; padding-left: 1rem; }
+    </style>
+</head>
+<body class="h-full antialiased">
+    
+    <div id="login-section" class="min-h-screen flex items-center justify-center p-4">
+        <div class="max-w-md w-full bg-white p-8 rounded-lg shadow-lg">
+            <div class="flex items-center justify-center mb-6">
+                <svg class="w-10 h-10 mr-2 text-primary-teal" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 0 0 6 16.5h12M3.75 3h16.5M3.75 3v-1.5A2.25 2.25 0 0 0 1.5 3.75v16.5A2.25 2.25 0 0 0 3.75 22.5h16.5A2.25 2.25 0 0 0 22.5 20.25v-1.5M13.5 6.75l-3 3m0 0-3-3m3 3v6.75m0-6.75h3.75m-3.75 0H6.75m6.75 6.75v3.75m0-3.75h3.75m-3.75 0H6.75m6.75 3.75v3.75m0-3.75h3.75m-3.75 0H6.75m9-1.5l3 3m0 0 3-3m-3 3v-6.75m0 6.75h-3.75m3.75 0h3.75m-3.75 0v-3.75m0 3.75h-3.75m3.75 0h3.75m-3.75 0v-3.75m0 3.75h-3.75m3.75 0h3.75" />
+                </svg>
+                <h1 class="text-3xl font-bold brand-gradient">Clínica IA</h1>
+            </div>
+            <h2 class="text-2xl font-bold text-gray-800 text-center mb-6">Acesse sua conta</h2>
+            <form id="login-form" class="space-y-4">
+                <div>
+                    <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
+                    <input type="email" id="email" name="email" required autocomplete="username" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-teal-500 focus:border-teal-500 sm:text-sm">
+                </div>
+                <div>
+                    <label for="password" class="block text-sm font-medium text-gray-700">Senha</label>
+                    <input type="password" id="password" name="password" required autocomplete="current-password" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-teal-500 focus:border-teal-500 sm:text-sm">
+                </div>
+                <button type="submit" class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500">
+                    Entrar
+                </button>
+            </form>
+            <div class="mt-6">
+                <div class="relative">
+                    <div class="absolute inset-0 flex items-center"><div class="w-full border-t border-gray-300"></div></div>
+                    <div class="relative flex justify-center text-sm"><span class="px-2 bg-white text-gray-500">Ou continue com</span></div>
+                </div>
+                <div class="mt-6">
+                    <button id="google-login-btn" class="w-full flex items-center justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <svg class="w-5 h-5 mr-2" aria-hidden="true" fill="currentColor" viewBox="0 0 24 24"><path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/><path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/><path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/><path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/></svg>
+                        Entrar com Google
+                    </button>
+                </div>
+            </div>
+            <p id="error-message" class="text-red-500 text-sm text-center mt-4"></p>
+        </div>
+    </div>
+
+    <div id="app-section" class="hidden min-h-screen flex flex-col">
+        <header class="bg-white shadow-sm py-4 px-6 flex items-center justify-between z-10">
+            <div class="flex items-center">
+                <svg class="w-8 h-8 mr-2 text-primary-teal" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 0 0 6 16.5h12M3.75 3h16.5M3.75 3v-1.5A2.25 2.25 0 0 0 1.5 3.75v16.5A2.25 2.25 0 0 0 3.75 22.5h16.5A2.25 2.25 0 0 0 22.5 20.25v-1.5M13.5 6.75l-3 3m0 0-3-3m3 3v6.75m0-6.75h3.75m-3.75 0H6.75m6.75 6.75v3.75m0-3.75h3.75m-3.75 0H6.75m6.75 3.75v3.75m0-3.75h3.75m-3.75 0H6.75m9-1.5l3 3m0 0 3-3m-3 3v-6.75m0 6.75h-3.75m3.75 0h3.75m-3.75 0v-3.75m0 3.75h-3.75m3.75 0h3.75m-3.75 0v-3.75m0 3.75h-3.75m3.75 0h3.75" /></svg>
+                <h1 class="text-2xl font-bold brand-gradient">Clínica IA</h1>
+            </div>
+            <div class="flex items-center">
+                <span id="user-email-display" class="text-gray-700 mr-4 font-medium"></span>
+                <button id="logout-btn" class="text-gray-500 hover:text-gray-700 transition-colors"><ion-icon name="log-out-outline" class="icon"></ion-icon></button>
+            </div>
+        </header>
+
+        <main class="flex-grow flex flex-col lg:flex-row bg-gray-100">
+            <nav class="bg-white p-4 shadow-md lg:w-64 flex lg:flex-col justify-around lg:justify-start border-b lg:border-r border-gray-200">
+                <button id="triagem-tab" class="tab-button active flex items-center p-3 text-gray-700 hover:bg-gray-100 rounded-lg text-left transition-colors font-medium"><ion-icon name="chatbubbles-outline" class="icon mr-3"></ion-icon> Nova Triagem</button>
+                <button id="historico-tab" class="tab-button flex items-center p-3 text-gray-700 hover:bg-gray-100 rounded-lg text-left transition-colors font-medium mt-1"><ion-icon name="list-outline" class="icon mr-3"></ion-icon> Histórico</button>
+                <button id="protocolos-tab" class="tab-button flex items-center p-3 text-gray-700 hover:bg-gray-100 rounded-lg text-left transition-colors font-medium mt-1"><ion-icon name="book-outline" class="icon mr-3"></ion-icon> Protocolos</button>
+            </nav>
+
+            <div class="flex-grow p-6 overflow-y-auto">
+                <section id="triagem-section" class="tab-content flex flex-col" style="height: calc(100vh - 150px);">
+                    <h2 class="text-3xl font-bold text-gray-800 mb-4 flex-shrink-0">Nova Triagem</h2>
+                    <div id="chat-container" class="flex-grow bg-white border border-gray-200 rounded-lg p-4 flex flex-col gap-4 overflow-y-auto mb-4"></div>
+                    <form id="chat-form" class="flex-shrink-0 flex gap-4 items-start">
+                        <textarea id="chat-input" placeholder="Descreva os sintomas do paciente..." class="flex-grow px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-teal-500 focus:border-teal-500 resize-none" rows="2"></textarea>
+                        <button id="chat-send-btn" type="submit" class="bg-teal-600 text-white px-5 py-2 rounded-lg hover:bg-teal-700 transition-colors flex items-center justify-center self-stretch"><ion-icon name="send-outline" class="icon"></ion-icon></button>
+                    </form>
+                </section>
+
+                <section id="historico-section" class="tab-content hidden">
+                    <h2 class="text-3xl font-bold text-gray-800 mb-6">Histórico de Triagens</h2>
+                    <div id="historico-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"><p class="text-gray-500 col-span-full">Carregando histórico...</p></div>
+                </section>
+
+                <section id="protocolos-section" class="tab-content hidden">
+                    <h2 class="text-3xl font-bold text-gray-800 mb-6">Protocolos e Alertas</h2>
+                    <div class="bg-white rounded-xl shadow-md p-6">
+                        <h3 class="text-xl font-semibold text-gray-800 mb-4">Protocolos na Base de Conhecimento</h3>
+                        <p class="text-sm text-gray-600 mb-4">Estes são os documentos que a IA usa para gerar as respostas.</p>
+                        <div id="protocolos-list" class="space-y-2"><p class="text-gray-500 text-sm">Carregando protocolos...</p></div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <div id="details-modal" class="modal-backdrop">
+        <div class="modal-content relative">
+            <ion-icon name="close-outline" class="modal-close-btn" onclick="closeDetailsModal()"></ion-icon>
+            <div id="modal-body"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- 0. CONFIGURAÇÃO DO FIREBASE ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyDqRoRHQU-3XwUmNrV5MwVW6o_PwbxywVA",
+            authDomain: "uniquex-487718.firebaseapp.com",
+            projectId: "uniquex-487718",
+            storageBucket: "uniquex-487718.firebasestorage.app",
+            messagingSenderId: "1050359786854",
+            appId: "1:1050359786854:web:6b9c09acbbd637ed5a6ca7",
+            measurementId: "G-ZHH62QK5F2"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const provider = new firebase.auth.GoogleAuthProvider();
+
+        // --- 1. ESTADO GLOBAL E CONSTANTES ---
+        const API_BASE_URL = '/api';
+        
+        const API_URL_NOVA_TRIAGEM = `${API_BASE_URL}/novaTriagem`;
+        const API_URL_HISTORICO = `${API_BASE_URL}/getHistorico`;
+        const API_URL_DETALHES_TRIAGEM = `${API_BASE_URL}/getDetalhesTriagem`;
+        const API_URL_GET_PROTOCOLOS = `${API_BASE_URL}/getProtocolos`;
+
+        let appState = {
+            isLoggedIn: false,
+            userEmail: null,
+            uid: null,
+            activeTab: 'triagem',
+            historico: { items: [], nextOffset: 0 },
+            chatMessages: [
+                { role: 'ia', content: 'Olá, Dr(a). Por favor, insira os sintomas, sinais vitais e tempo de início para a triagem.' }
+            ],
+        };
+
+        // --- 2. ELEMENTOS DA UI ---
+        const loginSection = document.getElementById('login-section');
+        const appSection = document.getElementById('app-section');
+        const loginForm = document.getElementById('login-form');
+        const emailInput = document.getElementById('email');
+        const passwordInput = document.getElementById('password');
+        const googleLoginBtn = document.getElementById('google-login-btn');
+        const errorMessageDisplay = document.getElementById('error-message');
+        const logoutBtn = document.getElementById('logout-btn');
+        const userEmailDisplay = document.getElementById('user-email-display');
+        const triagemTab = document.getElementById('triagem-tab');
+        const historicoTab = document.getElementById('historico-tab');
+        const protocolosTab = document.getElementById('protocolos-tab');
+        const triagemSection = document.getElementById('triagem-section');
+        const historicoSection = document.getElementById('historico-section');
+        const protocolosSection = document.getElementById('protocolos-section');
+        const chatContainer = document.getElementById('chat-container');
+        const chatForm = document.getElementById('chat-form');
+        const chatInput = document.getElementById('chat-input');
+        const chatSendBtn = document.getElementById('chat-send-btn');
+        const historicoList = document.getElementById('historico-list');
+        const protocolosList = document.getElementById('protocolos-list');
+        const detailsModal = document.getElementById('details-modal');
+        const modalBody = document.getElementById('modal-body');
+
+        // --- 3. LÓGICA DE AUTENTICAÇÃO ---
+        async function signIn(email, password) {
+            try {
+                errorMessageDisplay.textContent = '';
+                await auth.signInWithEmailAndPassword(email, password);
+            } catch (error) {
+                errorMessageDisplay.textContent = 'Erro: ' + (error.message || 'Verifique suas credenciais.');
+            }
+        }
+        async function signInWithGoogle() {
+            try {
+                errorMessageDisplay.textContent = '';
+                await auth.signInWithPopup(provider);
+            } catch (error) {
+                errorMessageDisplay.textContent = 'Erro: ' + (error.message || 'Tente novamente.');
+            }
+        }
+        async function signOutUser() {
+            await auth.signOut();
+        }
+
+        // --- 4. FUNÇÕES DE DADOS (API) ---
+        async function fetchAuthenticated(url, method = 'GET', body = null) {
+            const user = auth.currentUser;
+            if (!user) throw new Error("Usuário não autenticado.");
+            const token = await user.getIdToken();
+            const headers = { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' };
+            const options = { method, headers, body: body ? JSON.stringify(body) : null };
+            const response = await fetch(url, options);
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.error || `Erro HTTP: ${response.status}`);
+            }
+            return response.json();
+        }
+
+        async function sendChatMessage(prompt) {
+            try {
+                appState.chatMessages.push({ role: 'user', content: prompt });
+                renderChat();
+                chatInput.value = '';
+                chatSendBtn.disabled = true;
+                appState.chatMessages.push({ role: 'ia', content: 'Analisando...', isLoading: true });
+                renderChat();
+
+                const data = await fetchAuthenticated(API_URL_NOVA_TRIAGEM, 'POST', { prompt: prompt });
+                
+                appState.chatMessages.pop();
+                appState.chatMessages.push({ role: 'ia', content: data.respostaIa, triagemId: data.triagemId });
+                renderChat();
+            } catch (error) {
+                console.error("Erro na triagem:", error);
+                appState.chatMessages.pop();
+                appState.chatMessages.push({ role: 'ia', content: `Houve um erro: ${error.message}` });
+                renderChat();
+            } finally {
+                chatSendBtn.disabled = false;
+                chatInput.focus();
+            }
+        }
+        
+        async function getHistorico() {
+            try {
+                historicoList.innerHTML = '<p class="text-gray-500 col-span-full">Carregando histórico...</p>';
+                const data = await fetchAuthenticated(API_URL_HISTORICO);
+                appState.historico.items = data || [];
+                renderHistorico();
+            } catch (error) {
+                console.error("Erro ao buscar histórico:", error);
+                historicoList.innerHTML = `<p class="text-red-600 col-span-full">Erro ao carregar o histórico.</p>`;
+            }
+        }
+        
+        async function getProtocolos() {
+            try {
+                protocolosList.innerHTML = '<p class="text-gray-500 text-sm">Carregando protocolos...</p>';
+                const data = await fetchAuthenticated(API_URL_GET_PROTOCOLOS);
+                renderProtocolos(data || []);
+            } catch (error) {
+                console.error("Erro ao buscar protocolos:", error);
+                protocolosList.innerHTML = '<p class="text-red-600 text-sm">Erro ao carregar protocolos.</p>';
+            }
+        }
+
+        // --- 5. FUNÇÕES DE RENDERIZAÇÃO E UX ---
+function renderChat() {
+            chatContainer.innerHTML = '';
+            appState.chatMessages.forEach(msg => {
+                const bubble = document.createElement('div');
+                bubble.className = `chat-bubble ${msg.role}`;
+
+                if (msg.isLoading) {
+                    bubble.innerHTML = '<div class="animate-pulse">Analisando...</div>';
+                } else if (msg.role === 'ia' && typeof msg.content === 'object') {
+                    const r = msg.content; // 'r' é a resposta da IA (o JSON)
+                    
+                    // Adicionamos a classe base primeiro
+                    bubble.classList.add('prose-ia');
+                    
+                    // DEPOIS, verificamos se a classe de urgência é necessária
+                    if (r.alerta_urgencia === 'alta') {
+                        bubble.classList.add('urgency-high');
+                    }
+                    
+                    // AGORA, definimos o conteúdo do balão. Este código
+                    // será executado para TODAS as respostas da IA,
+                    // independentemente da urgência.
+                    bubble.innerHTML = `
+                        <p>${r.resumo_triagem || 'Análise concluída.'}</p>
+                        ${r.hipoteses && r.hipoteses.length > 0 ? `
+                        <h3>Hipóteses Prováveis</h3>
+                        <ul>
+                            ${r.hipoteses.map(h => `<li><strong>${h.hipotese}:</strong> ${h.justificativa}</li>`).join('')}
+                        </ul>` : ''}
+                        <div class="fontes">
+                            Fontes: ${r.hipoteses && r.hipoteses[0]?.fontes ? r.hipoteses[0].fontes.join(', ') : 'Base de conhecimento'}
+                        </div>`;
+
+                } else {
+                    // Isso lida com as mensagens do usuário e textos simples
+                    bubble.textContent = msg.content;
+                }
+                
+                chatContainer.appendChild(bubble);
+            });
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        function createEncounterCard(data) {
+            const statusColors = { 'PENDENTE': 'bg-yellow-100 text-yellow-800', 'CONFIRMADO': 'bg-green-100 text-green-800', 'DESCARTADO': 'bg-red-100 text-red-800' };
+            return `<div class="bg-white border border-gray-200 rounded-xl p-5 card-hover-effect cursor-pointer" onclick="openDetailsModal('${data.triagem_id}')">
+                <div class="flex justify-between items-start">
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColors[data.status] || ''}">${data.status}</span>
+                    <span class="text-xs text-gray-500">${new Date(data.data_triagem).toLocaleDateString('pt-BR')}</span>
+                </div>
+                <h2 class="text-base font-semibold text-gray-800 line-clamp-2 mt-2" title="${data.prompt_medico}">${data.prompt_medico}</h2>
+                <p class="text-sm text-gray-600 mt-2">Paciente: <strong>${data.paciente_id_anonimizado || 'Não ID'}</strong></p>
+            </div>`;
+        }
+        
+        function renderHistorico() {
+            if (appState.historico.items.length === 0) {
+                historicoList.innerHTML = '<p class="text-gray-500 col-span-full">Nenhuma triagem encontrada.</p>';
+                return;
+            }
+            historicoList.innerHTML = appState.historico.items.map(createEncounterCard).join('');
+        }
+
+        function renderProtocolos(protocolos) {
+            if (protocolos.length === 0) {
+                protocolosList.innerHTML = '<p class="text-gray-500 text-sm">Nenhum protocolo carregado.</p>';
+                return;
+            }
+            protocolosList.innerHTML = protocolos.map(proto => `
+                <div class="flex items-center justify-between p-2 bg-gray-50 rounded-md border border-gray-200">
+                    <span class="flex items-center text-sm text-gray-700"><ion-icon name="document-text-outline" class="icon mr-2 text-primary-teal"></ion-icon>${proto.source_id}</span>
+                </div>`).join('');
+        }
+
+        async function openDetailsModal(triagemId) {
+            modalBody.innerHTML = '<p class="text-center">Carregando...</p>';
+            detailsModal.classList.add('visible');
+            try {
+                const url = `${API_URL_DETALHES_TRIAGEM}?id=${encodeURIComponent(triagemId)}`;
+                const data = await fetchAuthenticated(url);
+                const ia = data.resposta_ia || {};
+                modalBody.innerHTML = `
+                    <h2 class="text-2xl font-bold text-gray-800 mb-4">Detalhes da Triagem</h2>
+                    <div class="space-y-4 text-gray-700">
+                        <div><h3 class="font-semibold">Sintomas Informados</h3><p class="p-2 bg-gray-50 rounded mt-1">${data.prompt_medico || 'N/A'}</p></div>
+                        <div><h3 class="font-semibold">Análise da IA</h3><div class="p-3 bg-blue-50 rounded mt-1 prose-ia">
+                            <p><strong>Resumo:</strong> ${ia.resumo_triagem || 'N/A'}</p>
+                            <p><strong>Urgência:</strong> <span class="font-bold">${ia.alerta_urgencia || 'N/A'}</span></p>
+                            ${ia.hipoteses?.length > 0 ? `<h3>Hipóteses</h3><ul>${ia.hipoteses.map(h => `<li><strong>${h.hipotese}:</strong> ${h.justificativa} (Fontes: ${h.fontes.join(', ')})</li>`).join('')}</ul>` : ''}
+                        </div></div>
+                        <div><h3 class="font-semibold">Notas do Médico</h3><p>${data.notas_medico || 'Nenhuma nota.'}</p></div>
+                    </div>`;
+            } catch (error) {
+                modalBody.innerHTML = `<p class="text-red-600">Não foi possível carregar os detalhes.</p>`;
+            }
+        }
+
+        function closeDetailsModal() {
+            detailsModal.classList.remove('visible');
+        }
+        
+        // --- 6. FUNÇÕES DE CONTROLE DE VIEW ---
+        function updateView() {
+            if (appState.isLoggedIn) {
+                loginSection.classList.add('hidden');
+                appSection.classList.remove('hidden');
+                userEmailDisplay.textContent = appState.userEmail;
+                document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('bg-gray-200', 'text-primary-teal'));
+                document.querySelectorAll('.tab-content').forEach(content => content.classList.add('hidden'));
+                const tabMap = { 'triagem': triagemTab, 'historico': historicoTab, 'protocolos': protocolosTab };
+                const sectionMap = { 'triagem': triagemSection, 'historico': historicoSection, 'protocolos': protocolosSection };
+                tabMap[appState.activeTab]?.classList.add('bg-gray-200', 'text-primary-teal');
+                sectionMap[appState.activeTab]?.classList.remove('hidden');
+                fetchAndRenderData();
+            } else {
+                loginSection.classList.remove('hidden');
+                appSection.classList.add('hidden');
+            }
+        }
+
+        async function fetchAndRenderData() {
+            if (!appState.isLoggedIn) return;
+            if (appState.activeTab === 'triagem') renderChat();
+            else if (appState.activeTab === 'historico') await getHistorico();
+            else if (appState.activeTab === 'protocolos') await getProtocolos();
+        }
+
+        // --- 7. EVENT LISTENERS ---
+        function setupEventListeners() {
+            loginForm.addEventListener('submit', (e) => { e.preventDefault(); signIn(emailInput.value, passwordInput.value); });
+            googleLoginBtn.addEventListener('click', signInWithGoogle);
+            logoutBtn.addEventListener('click', signOutUser);
+            triagemTab.addEventListener('click', () => { appState.activeTab = 'triagem'; updateView(); });
+            historicoTab.addEventListener('click', () => { appState.activeTab = 'historico'; updateView(); });
+            protocolosTab.addEventListener('click', () => { appState.activeTab = 'protocolos'; updateView(); });
+            chatForm.addEventListener('submit', (e) => { e.preventDefault(); const p = chatInput.value.trim(); if(p) sendChatMessage(p); });
+            document.addEventListener('keydown', (e) => e.key === 'Escape' && closeDetailsModal());
+            detailsModal.addEventListener('click', (e) => e.target === detailsModal && closeDetailsModal());
+        }
+
+        // --- 8. INICIALIZAÇÃO ---
+        auth.onAuthStateChanged(user => {
+            appState.isLoggedIn = !!user;
+            appState.userEmail = user?.email || null;
+            appState.uid = user?.uid || null;
+            if (!user) appState.chatMessages = [{ role: 'ia', content: 'Olá, Dr(a). Por favor, insira os sintomas...' }];
+            updateView();
+        });
+        document.addEventListener('DOMContentLoaded', setupEventListeners);
+    </script>
+</body>
+</html>

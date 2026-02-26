@@ -1,0 +1,36 @@
+{
+  "name": "liciai-functions",
+  "version": "1.0.0",
+  "private": true,
+  "main": "lib/index.js",
+  "engines": { "node": "20" },
+  "scripts": {
+    "build": "tsc && cp -f ../public/project-structure.json ./lib/project-structure.json 2>/dev/null || true",
+    "gcp-build": "npm run build",
+    "serve": "firebase emulators:start --only functions",
+    "shell": "firebase functions:shell",
+    "logs": "firebase functions:log",
+    "context": "node ../scripts/generate-context.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "@google-cloud/aiplatform": "^5.9.0",
+    "@google-cloud/bigquery": "^7.8.0",
+    "@google-cloud/tasks": "^5.4.0",
+    "@google-cloud/vertexai": "^1.10.0",
+    "axios": "^1.7.2",
+    "cors": "^2.8.5",
+    "express": "^4.19.2",
+    "firebase-admin": "^12.1.1",
+    "firebase-functions": "^5.0.1",
+    "pdf-parse": "^1.1.1",
+    "google-auth-library": "^9.14.2"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^4.17.21",
+    "@types/pdf-parse": "^1.1.4",
+    "firebase-functions-test": "^3.2.0",
+    "typescript": "^5.4.5"
+  }
+}

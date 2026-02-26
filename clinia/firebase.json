@@ -1,0 +1,25 @@
+{
+  "functions": {
+    "source": "function",
+    "runtime": "nodejs20"
+  },
+  "hosting": {
+    "site": "clinia",
+    "public": "public",
+    "ignore": [
+      "firebase.json",
+      "**/.*",
+      "**/node_modules/**"
+    ],
+    "rewrites": [
+      {
+        "source": "/api/**",
+        "function": "cliniaApi"
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  }
+}

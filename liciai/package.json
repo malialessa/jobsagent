@@ -1,0 +1,10 @@
+{
+  "name": "liciai-monorepo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build:structure": "node scripts/generate-structure.js",
+    "predeploy": "npm run build:structure && cd functions && npm install && npm run build",
+    "deploy": "firebase deploy --only functions,hosting"
+  }
+}

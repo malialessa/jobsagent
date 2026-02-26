@@ -1,5 +1,6 @@
 Flask
 google-cloud-firestore
+google-auth
 vertexai
 requests
 beautifulsoup4

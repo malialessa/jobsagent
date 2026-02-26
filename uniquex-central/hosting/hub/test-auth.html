@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8">
+  <title>Teste de Autenticação - HubAmalia</title>
+  <style>
+    body {
+      font-family: 'Inter', -apple-system, sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #f1f5f9;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 12px;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    h1 { color: #1e293b; margin-top: 0; }
+    .status {
+      padding: 15px;
+      margin: 15px 0;
+      border-radius: 8px;
+      border-left: 4px solid #64748b;
+    }
+    .status.success { background: #dcfce7; border-color: #16a34a; color: #166534; }
+    .status.error { background: #fee2e2; border-color: #dc2626; color: #991b1b; }
+    .status.info { background: #dbeafe; border-color: #2563eb; color: #1e40af; }
+    .log {
+      background: #1e293b;
+      color: #e2e8f0;
+      padding: 15px;
+      border-radius: 8px;
+      font-family: 'Monaco', 'Courier New', monospace;
+      font-size: 12px;
+      max-height: 400px;
+      overflow-y: auto;
+      margin: 20px 0;
+    }
+    .log-entry {
+      padding: 5px 0;
+      border-bottom: 1px solid #334155;
+    }
+    .log-entry:last-child { border-bottom: none; }
+    .timestamp { color: #64748b; }
+    .success-icon { color: #16a34a; }
+    .error-icon { color: #dc2626; }
+    .info-icon { color: #2563eb; }
+    button {
+      background: #4f46e5;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 600;
+      margin: 5px;
+    }
+    button:hover { background: #4338ca; }
+    .clear-btn { background: #64748b; }
+    .clear-btn:hover { background: #475569; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🧪 Teste de Autenticação Centralizada</h1>
+    
+    <div id="status" class="status info">
+      ⏳ Aguardando mensagens do HubAmalia...
+    </div>
+    
+    <div>
+      <button onclick="requestAuth()">🔄 Solicitar Token</button>
+      <button onclick="clearLogs()" class="clear-btn">🗑️ Limpar Logs</button>
+    </div>
+    
+    <h3>📋 Logs de Comunicação</h3>
+    <div id="logs" class="log">
+      <div class="log-entry">Aguardando eventos...</div>
+    </div>
+    
+    <h3>ℹ️ Como Usar</h3>
+    <ol>
+      <li>Abra <strong>https://hubamalia.web.app</strong> em outra aba</li>
+      <li>Faça login com Google</li>
+      <li>Clique em qualquer app no sidebar</li>
+      <li>Volte para esta aba e veja os logs abaixo</li>
+    </ol>
+    
+    <p><strong>Se você estiver vendo esta página DENTRO do HubAmalia (no iframe):</strong></p>
+    <ul>
+      <li>✅ Os logs devem aparecer automaticamente quando o hub enviar o token</li>
+      <li>✅ O status acima deve mudar para "Token recebido com sucesso"</li>
+    </ul>
+  </div>
+
+  <script>
+    let receivedToken = null;
+    let receivedUser = null;
+    
+    function addLog(message, type = 'info') {
+      const logsDiv = document.getElementById('logs');
+      const timestamp = new Date().toLocaleTimeString('pt-BR');
+      const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
+      const iconClass = type === 'success' ? 'success-icon' : type === 'error' ? 'error-icon' : 'info-icon';
+      
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+      entry.innerHTML = `<span class="timestamp">[${timestamp}]</span> <span class="${iconClass}">${icon}</span> ${message}`;
+      logsDiv.appendChild(entry);
+      logsDiv.scrollTop = logsDiv.scrollHeight;
+    }
+    
+    function updateStatus(message, type) {
+      const statusDiv = document.getElementById('status');
+      statusDiv.className = `status ${type}`;
+      statusDiv.textContent = message;
+    }
+    
+    function clearLogs() {
+      document.getElementById('logs').innerHTML = '<div class="log-entry">Logs limpos.</div>';
+    }
+    
+    function requestAuth() {
+      addLog('Enviando mensagem APP_READY para o hub...', 'info');
+      window.parent.postMessage({ type: 'APP_READY' }, '*');
+    }
+    
+    // Escutar mensagens do Hub
+    window.addEventListener('message', (event) => {
+      addLog(`Mensagem recebida de: ${event.origin}`, 'info');
+      
+      // Verificar origem
+      if (!event.origin.includes('hubamalia.web.app') && !event.origin.includes('localhost')) {
+        addLog(`⚠️ Origem não autorizada: ${event.origin}`, 'error');
+        updateStatus('❌ Mensagem de origem não autorizada recebida', 'error');
+        return;
+      }
+      
+      const data = event.data;
+      addLog(`Tipo de mensagem: ${data.type}`, 'info');
+      
+      if (data.type === 'HUB_AUTH') {
+        receivedToken = data.token;
+        receivedUser = data.user;
+        
+        addLog('🎉 Token recebido com sucesso!', 'success');
+        addLog(`👤 Usuário: ${data.user.email}`, 'success');
+        addLog(`🆔 UID: ${data.user.uid}`, 'info');
+        addLog(`📏 Tamanho do token: ${data.token.length} caracteres`, 'info');
+        addLog(`🖼️ Display Name: ${data.user.displayName || 'N/A'}`, 'info');
+        
+        updateStatus('✅ Token recebido e autenticação bem-sucedida!', 'success');
+        
+        // Mostrar início e fim do token (ofuscado)
+        const tokenPreview = `${data.token.substring(0, 20)}...${data.token.substring(data.token.length - 20)}`;
+        addLog(`🔑 Token (preview): ${tokenPreview}`, 'info');
+        
+        // Disparar evento customizado
+        window.dispatchEvent(new CustomEvent('hub-auth-ready', { 
+          detail: { user: data.user, token: data.token }
+        }));
+        
+        addLog('📢 Evento "hub-auth-ready" disparado', 'success');
+      }
+    });
+    
+    // Escutar evento customizado
+    window.addEventListener('hub-auth-ready', (event) => {
+      addLog('🎯 Evento "hub-auth-ready" capturado pela aplicação', 'success');
+    });
+    
+    // Notificar hub que está pronto (se estiver em iframe)
+    if (window.parent !== window) {
+      addLog('📡 Detectado dentro de iframe, enviando APP_READY...', 'info');
+      window.parent.postMessage({ type: 'APP_READY' }, '*');
+    } else {
+      addLog('🖥️ Executando em janela standalone (não em iframe)', 'info');
+    }
+    
+    addLog('🚀 Sistema de autenticação inicializado', 'success');
+  </script>
+</body>
+</html>

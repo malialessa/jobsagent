@@ -1,0 +1,73 @@
+{
+  "functions": [
+    {
+      "source": "functions",
+      "codebase": "default",
+      "runtime": "nodejs20"
+    }
+  ],
+  "hosting": {
+    "site": "uniquexhub",
+    "public": "hosting/hub",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-cache, no-store, must-revalidate"
+          }
+        ]
+      }
+    ],
+    "rewrites": [
+      {
+        "source": "/api/liciai/**",
+        "function": {
+          "functionId": "liciaiApi",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/clinia/**",
+        "function": {
+          "functionId": "cliniaApi",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/jobsagent/**",
+        "function": {
+          "functionId": "jobsagentApi",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/analisadoredital/**",
+        "function": {
+          "functionId": "analisadoreditalApi",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "/api/analisadortr/**",
+        "function": {
+          "functionId": "analisadortrApi",
+          "region": "us-central1"
+        }
+      },
+      {
+        "source": "**",
+        "destination": "/index.html"
+      }
+    ]
+  },
+  "firestore": {
+    "rules": "firestore.rules",
+    "indexes": "firestore.indexes.json"
+  },
+  "storage": {
+    "rules": "storage.rules"
+  }
+}

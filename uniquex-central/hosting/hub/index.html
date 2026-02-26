@@ -1,0 +1,1109 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>UniqueX · AI-Powered Platform</title>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=Space+Grotesk:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    * { 
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      margin: 0; 
+      padding: 0; 
+      box-sizing: border-box; 
+    }
+    
+    :root {
+      --sidebar-width: 280px;
+      
+      /* Dark Futuristic Colors */
+      --bg-primary: #0a0e27;
+      --bg-secondary: #12172e;
+      --bg-tertiary: #1a1f3a;
+      
+      /* Neon Accents */
+      --accent-primary: #00f0ff;
+      --accent-secondary: #7000ff;
+      --accent-tertiary: #ff006e;
+      
+      /* Gradients */
+      --gradient-primary: linear-gradient(135deg, #00f0ff 0%, #7000ff 100%);
+      --gradient-secondary: linear-gradient(135deg, #ff006e 0%, #ff7300 100%);
+      --gradient-glass: linear-gradient(135deg, rgba(0, 240, 255, 0.1) 0%, rgba(112, 0, 255, 0.1) 100%);
+      
+      /* Text */
+      --text-primary: #ffffff;
+      --text-secondary: #a0aec0;
+      --text-muted: #64748b;
+      
+      /* Effects */
+      --shadow-glow: 0 0 20px rgba(0, 240, 255, 0.3);
+      --shadow-card: 0 8px 32px rgba(0, 0, 0, 0.4);
+    }
+    
+    body { 
+      background: var(--bg-primary);
+      background-image: 
+        radial-gradient(circle at 20% 50%, rgba(112, 0, 255, 0.1) 0%, transparent 50%),
+        radial-gradient(circle at 80% 80%, rgba(0, 240, 255, 0.1) 0%, transparent 50%);
+      min-height: 100vh;
+      overflow: hidden;
+      color: var(--text-primary);
+    }
+    
+    /* Animated background particles */
+    @keyframes float {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-20px); }
+    }
+    
+    .background-particle {
+      position: fixed;
+      width: 4px;
+      height: 4px;
+      background: var(--accent-primary);
+      border-radius: 50%;
+      animation: float 6s ease-in-out infinite;
+      opacity: 0.3;
+      pointer-events: none;
+    }
+    
+    /* Sidebar */
+    .sidebar {
+      position: fixed;
+      left: 0;
+      top: 0;
+      width: var(--sidebar-width);
+      height: 100vh;
+      background: rgba(18, 23, 46, 0.8);
+      backdrop-filter: blur(20px);
+      border-right: 1px solid rgba(0, 240, 255, 0.1);
+      display: flex;
+      flex-direction: column;
+      z-index: 100;
+      overflow: hidden;
+    }
+    
+    .sidebar::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: var(--gradient-glass);
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    
+    .sidebar-header {
+      padding: 32px 24px;
+      border-bottom: 1px solid rgba(0, 240, 255, 0.1);
+      position: relative;
+      z-index: 1;
+    }
+    
+    .logo {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 28px;
+      font-weight: 700;
+      background: var(--gradient-primary);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      letter-spacing: -1px;
+    }
+    
+    .logo-icon {
+      width: 40px;
+      height: 40px;
+      background: var(--gradient-primary);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: var(--shadow-glow);
+      animation: pulse 2s ease-in-out infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); box-shadow: 0 0 20px rgba(0, 240, 255, 0.3); }
+      50% { transform: scale(1.05); box-shadow: 0 0 30px rgba(0, 240, 255, 0.5); }
+    }
+    
+    .logo-text {
+      position: relative;
+    }
+    
+    .sidebar-nav {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      position: relative;
+      z-index: 1;
+    }
+    
+    .sidebar-nav::-webkit-scrollbar {
+      width: 6px;
+    }
+    
+    .sidebar-nav::-webkit-scrollbar-track {
+      background: transparent;
+    }
+    
+    .sidebar-nav::-webkit-scrollbar-thumb {
+      background: rgba(0, 240, 255, 0.2);
+      border-radius: 10px;
+    }
+    
+    .nav-section {
+      margin-bottom: 24px;
+    }
+    
+    .nav-section-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--text-muted);
+      padding: 0 12px 12px;
+    }
+    
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      color: var(--text-secondary);
+      font-size: 14px;
+      font-weight: 500;
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 6px;
+    }
+    
+    .nav-item::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 0;
+      width: 0;
+      height: 100%;
+      background: var(--gradient-primary);
+      transition: width 0.3s;
+      opacity: 0;
+    }
+    
+    .nav-item:hover {
+      background: rgba(0, 240, 255, 0.1);
+      color: var(--text-primary);
+      transform: translateX(4px);
+    }
+    
+    .nav-item:hover::before {
+      width: 3px;
+      opacity: 1;
+    }
+    
+    .nav-item.active {
+      background: rgba(0, 240, 255, 0.15);
+      color: var(--accent-primary);
+      box-shadow: inset 0 0 20px rgba(0, 240, 255, 0.1);
+    }
+    
+    .nav-item.active::before {
+      width: 3px;
+      opacity: 1;
+    }
+    
+    .nav-item svg {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+      opacity: 0.8;
+    }
+    
+    .nav-item:hover svg,
+    .nav-item.active svg {
+      opacity: 1;
+    }
+    
+    .sidebar-footer {
+      padding: 20px;
+      border-top: 1px solid rgba(0, 240, 255, 0.1);
+      position: relative;
+      z-index: 1;
+    }
+    
+    .user-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px;
+      background: rgba(0, 240, 255, 0.05);
+      border-radius: 12px;
+      border: 1px solid rgba(0, 240, 255, 0.1);
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    
+    .user-card:hover {
+      background: rgba(0, 240, 255, 0.1);
+      border-color: rgba(0, 240, 255, 0.3);
+    }
+    
+    .user-avatar {
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      object-fit: cover;
+      border: 2px solid var(--accent-primary);
+      box-shadow: 0 0 10px rgba(0, 240, 255, 0.3);
+    }
+    
+    .user-info {
+      flex: 1;
+      min-width: 0;
+    }
+    
+    .user-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--text-primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .user-email {
+      font-size: 12px;
+      color: var(--text-muted);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .logout-btn {
+      background: rgba(255, 0, 110, 0.1);
+      border: 1px solid rgba(255, 0, 110, 0.2);
+      color: --accent-tertiary);
+      padding: 10px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.3s;
+      margin-top: 12px;
+      font-size: 13px;
+      font-weight: 600;
+      width: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+    }
+    
+    .logout-btn:hover {
+      background: rgba(255, 0, 110, 0.2);
+      border-color: rgba(255, 0, 110, 0.4);
+    }
+    
+    /* Main Content */
+    .main-content {
+      margin-left: var(--sidebar-width);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .top-bar {
+      padding: 20px 32px;
+      background: rgba(18, 23, 46, 0.6);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid rgba(0, 240, 255, 0.1);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    
+    .current-app-title {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 24px;
+      font-weight: 700;
+      background: var(--gradient-primary);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+    
+    .app-container {
+      flex: 1;
+      padding: 24px;
+      overflow: hidden;
+      position: relative;
+    }
+    
+    .loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(10, 14, 39, 0.95);
+      backdrop-filter: blur(10px);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 50;
+    }
+    
+    .loading-spinner {
+      width: 60px;
+      height: 60px;
+      border: 3px solid transparent;
+      border-top-color: var(--accent-primary);
+      border-right-color: var(--accent-secondary);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .loading-text {
+      margin-top: 20px;
+      font-size: 14px;
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+    
+    .app-frame {
+      width: 100%;
+      height: 100%;
+      border: none;
+      border-radius: 16px;
+      background: var(--bg-secondary);
+      box-shadow: var(--shadow-card);
+      overflow: hidden;
+    }
+    
+    /* Login Screen */
+    .login-screen {
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .login-card {
+      background: rgba(18, 23, 46, 0.8);
+      backdrop-filter: blur(20px);
+      padding: 60px;
+      border-radius: 24px;
+      border: 1px solid rgba(0, 240, 255, 0.2);
+      box-shadow: var(--shadow-card);
+      text-align: center;
+      max-width: 480px;
+      width: 100%;
+      position: relative;
+      z-index: 1;
+    }
+    
+    .login-logo {
+      font-family: 'Space Grotesk', sans-serif;
+      font-size: 48px;
+      font-weight: 900;
+      background: var(--gradient-primary);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      margin-bottom: 16px;
+      letter-spacing: -2px;
+    }
+    
+    .login-subtitle {
+      font-size: 18px;
+      color: var(--text-secondary);
+      margin-bottom: 48px;
+      font-weight: 400;
+    }
+    
+    .login-btn {
+      background: var(--gradient-primary);
+      border: none;
+      color: white;
+      padding: 18px 36px;
+      border-radius: 12px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      box-shadow: 0 0 30px rgba(0, 240, 255, 0.4);
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+    }
+    
+    .login-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 0 40px rgba(0, 240, 255, 0.6);
+    }
+    
+    .login-btn:active {
+      transform: translateY(0);
+    }
+    
+    /* Toast */
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: rgba(18, 23, 46, 0.95);
+      backdrop-filter: blur(20px);
+      color: white;
+      padding: 16px 24px;
+      border-radius: 12px;
+      border: 1px solid rgba(0, 240, 255, 0.3);
+      box-shadow: var(--shadow-card);
+      z-index: 1000;
+      animation: slideIn 0.3s ease-out;
+      font-size: 14px;
+      font-weight: 500;
+    }
+    
+    @keyframes slideIn {
+      from { transform: translateX(400px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    
+    .toast.success {
+      border-color: rgba(0, 240, 255, 0.5);
+      box-shadow: 0 0 20px rgba(0, 240, 255, 0.3);
+    }
+    
+    .toast.error {
+      border-color: rgba(255, 0, 110, 0.5);
+      box-shadow: 0 0 20px rgba(255, 0, 110, 0.3);
+    }
+    
+    .hidden {
+      display: none !important;
+    }
+    
+    /* Responsive */
+    @media (max-width: 768px) {
+      :root {
+        --sidebar-width: 70px;
+      }
+      
+      .nav-item-text,
+      .user-info,
+      .logout-btn {
+        display: none;
+      }
+      
+      .sidebar-header {
+        padding: 20px 12px;
+      }
+      
+      .logo-text {
+        display: none;
+      }
+      
+      .main-content {
+        margin-left: 70px;
+      }
+    }
+      color: var(--gray-400);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      padding: 0 12px 8px;
+    }
+    
+    .nav-item {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 10px 12px;
+      color: var(--gray-600);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      margin-bottom: 4px;
+    }
+    
+    .nav-item:hover {
+      background: var(--gray-100);
+      color: var(--dark);
+    }
+    
+    .nav-item.active {
+      background: var(--primary);
+      color: white;
+    }
+    
+    .nav-item svg {
+      width: 20px;
+      height: 20px;
+      flex-shrink: 0;
+    }
+    
+    .nav-item-text {
+      font-size: 14px;
+      font-weight: 500;
+    }
+    
+    .sidebar-footer {
+      padding: 16px;
+      border-top: 1px solid var(--gray-200);
+    }
+    
+    .user-info {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 8px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.15s ease;
+    }
+    
+    .user-info:hover {
+      background: var(--gray-100);
+    }
+    
+    .user-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--gray-200);
+    }
+    
+    .user-details {
+      flex: 1;
+      min-width: 0;
+    }
+    
+    .user-name {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--dark);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    .user-email {
+      font-size: 12px;
+      color: var(--gray-400);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    
+    /* Main Content */
+    .main-content {
+      margin-left: var(--sidebar-width);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    
+    .app-viewer {
+      flex: 1;
+      background: white;
+      position: relative;
+      overflow: hidden;
+    }
+    
+    .app-iframe {
+      width: 100%;
+      height: 100%;
+      border: none;
+    }
+    
+    .empty-state {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      color: var(--gray-400);
+    }
+    
+    .empty-state svg {
+      width: 120px;
+      height: 120px;
+      margin-bottom: 24px;
+      opacity: 0.3;
+    }
+    
+    .empty-state h2 {
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--gray-600);
+      margin-bottom: 8px;
+    }
+    
+    .empty-state p {
+      font-size: 16px;
+      color: var(--gray-400);
+    }
+    
+    .loading-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+    }
+    
+    .loading-spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid var(--gray-200);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    /* Login Screen */
+    .login-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+    }
+    
+    .login-card {
+      background: white;
+      padding: 48px;
+      border-radius: 16px;
+      box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1);
+      text-align: center;
+      max-width: 400px;
+      width: 90%;
+    }
+    
+    .login-logo {
+      width: 64px;
+      height: 64px;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 24px;
+    }
+    
+    .login-title {
+      font-size: 28px;
+      font-weight: 700;
+      color: var(--dark);
+      margin-bottom: 8px;
+    }
+    
+    .login-subtitle {
+      color: var(--gray-600);
+      margin-bottom: 32px;
+      font-size: 15px;
+    }
+    
+    .btn-google {
+      width: 100%;
+      padding: 14px 24px;
+      background: white;
+      color: var(--dark);
+      border: 1px solid var(--gray-300);
+      border-radius: 8px;
+      font-weight: 600;
+      font-size: 15px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+    }
+    
+    .btn-google:hover {
+      background: var(--gray-50);
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    
+    .toast {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      background: white;
+      padding: 16px 20px;
+      border-radius: 8px;
+      box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      z-index: 2000;
+      animation: slideIn 0.3s ease;
+      max-width: 400px;
+      border-left: 4px solid var(--primary);
+    }
+    
+    @keyframes slideIn {
+      from { transform: translateX(400px); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+    
+    .toast-success { border-left-color: var(--success); }
+    .toast-error { border-left-color: var(--danger); }
+    .toast-info { border-left-color: var(--primary); }
+    
+    .hidden { display: none !important; }
+    
+    @media (max-width: 768px) {
+      .sidebar {
+        transform: translateX(-100%);
+        transition: transform 0.3s ease;
+      }
+      
+      .sidebar.open {
+        transform: translateX(0);
+      }
+      
+      .main-content {
+        margin-left: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <!-- Login Screen -->
+  <div id="loginScreen" class="login-container">
+    <div class="login-card">
+      <div class="login-logo">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2">
+          <rect x="3" y="3" width="7" height="7" rx="1"/>
+          <rect x="14" y="3" width="7" height="7" rx="1"/>
+          <rect x="14" y="14" width="7" height="7" rx="1"/>
+          <rect x="3" y="14" width="7" height="7" rx="1"/>
+        </svg>
+      </div>
+      <div class="login-title">HubAmalia</div>
+      <div class="login-subtitle">Gestão centralizada dos seus apps MVP</div>
+      <button class="btn-google" onclick="signInWithGoogle()">
+        <svg width="20" height="20" viewBox="0 0 20 20">
+          <path fill="#4285F4" d="M19.6 10.23c0-.82-.1-1.42-.25-2.05H10v3.72h5.5c-.15.96-.74 2.31-2.04 3.22v2.45h3.16c1.89-1.73 2.98-4.3 2.98-7.34z"/>
+          <path fill="#34A853" d="M13.46 15.13c-.83.59-1.96 1-3.46 1-2.64 0-4.88-1.74-5.68-4.15H1.07v2.52C2.72 17.75 6.09 20 10 20c2.7 0 4.96-.89 6.62-2.42l-3.16-2.45z"/>
+          <path fill="#FBBC05" d="M3.99 10c0-.69.12-1.35.32-1.97V5.51H1.07A9.973 9.973 0 000 10c0 1.61.39 3.14 1.07 4.49l3.24-2.52c-.2-.62-.32-1.28-.32-1.97z"/>
+          <path fill="#EA4335" d="M10 3.88c1.88 0 3.13.81 3.85 1.48l2.84-2.76C14.96.99 12.7 0 10 0 6.09 0 2.72 2.25 1.07 5.51l3.24 2.52C5.12 5.62 7.36 3.88 10 3.88z"/>
+        </svg>
+        Entrar com Google
+      </button>
+    </div>
+  </div>
+
+  <!-- Sidebar -->
+  <div id="sidebar" class="sidebar hidden">
+    <div class="sidebar-header">
+      <div class="logo">
+        <div class="logo-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5">
+            <rect x="3" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="3" width="7" height="7" rx="1"/>
+            <rect x="14" y="14" width="7" height="7" rx="1"/>
+            <rect x="3" y="14" width="7" height="7" rx="1"/>
+          </svg>
+        </div>
+        HubAmalia
+      </div>
+    </div>
+    
+    <div class="sidebar-nav">
+      <div class="nav-section">
+        <div class="nav-section-title">Aplicações</div>
+        <div id="appsList"></div>
+      </div>
+    </div>
+    
+    <div class="sidebar-footer">
+      <div class="user-info" onclick="signOut()">
+        <img id="userAvatar" class="user-avatar" />
+        <div class="user-details">
+          <div class="user-name" id="userName">Carregando...</div>
+          <div class="user-email" id="userEmail">...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main Content -->
+  <div id="mainContent" class="main-content hidden">
+    <div class="app-viewer">
+      <div id="emptyState" class="empty-state">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <rect x="3" y="3" width="7" height="7" rx="1"/>
+          <rect x="14" y="3" width="7" height="7" rx="1"/>
+          <rect x="14" y="14" width="7" height="7" rx="1"/>
+          <rect x="3" y="14" width="7" height="7" rx="1"/>
+        </svg>
+        <h2>Selecione uma aplicação</h2>
+        <p>Escolha um app na barra lateral para visualizar</p>
+      </div>
+      <div id="loadingOverlay" class="loading-overlay hidden">
+        <div class="loading-spinner"></div>
+      </div>
+      <iframe id="appFrame" class="app-iframe hidden"></iframe>
+    </div>
+  </div>
+
+  <script>
+    let currentUser = null;
+    const apps = [
+      {
+        id: 'liciai',
+        name: 'LiciAI',
+        url: 'https://uniquexhub.web.app/apps/liciai/index.html',
+        icon: `<path d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3"/>`
+      },
+      {
+        id: 'clinia',
+        name: 'Clínia',
+        url: 'https://uniquexhub.web.app/apps/clinia/index.html',
+        icon: `<path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/>`
+      },
+      {
+        id: 'jobsagent',
+        name: 'JobsAgent',
+        url: 'https://uniquexhub.web.app/apps/jobsagent/index.html',
+        icon: `<path d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>`
+      },
+      {
+        id: 'eixa',
+        name: 'Eixa AI',
+        url: 'https://uniquexhub.web.app/apps/eixa/index.html',
+        icon: `<path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/>`
+      },
+      {
+        id: 'analisadoredital',
+        name: 'Analisador Edital',
+        url: 'https://uniquexhub.web.app/apps/analisadoredital/index.html',
+        icon: `<path d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>`
+      },
+      {
+        id: 'analisadortr',
+        name: 'Analisador TR',
+        url: 'https://uniquexhub.web.app/apps/analisadortr/index.html',
+        icon: `<path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/>`
+      },
+      {
+        id: 'dashboard',
+        name: 'Dashboard',
+        url: 'https://uniquexhub.web.app/apps/dashboard/index.html',
+        icon: `<path d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>`
+      }
+    ];
+
+    // Firebase Config - Projeto UniqueX
+    const firebaseConfig = {
+      apiKey: "AIzaSyDqRoRHQU-3XwUmNrV5MwVW6o_PwbxywVA",
+      authDomain: "uniquex-487718.firebaseapp.com",
+      projectId: "uniquex-487718",
+      storageBucket: "uniquex-487718.firebasestorage.app",
+      messagingSenderId: "1050359786854",
+      appId: "1:1050359786854:web:6b9c09acbbd637ed5a6ca7"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+
+    // Processado resultado de redirect (quando COOP bloqueia popup)
+    auth.getRedirectResult().then((result) => {
+      if (result && result.user) {
+        showToast('Login realizado com sucesso!', 'success');
+      }
+    }).catch((err) => {
+      if (err.code !== 'auth/no-current-user' && err.code !== 'auth/credential-already-in-use') {
+        console.warn('getRedirectResult error:', err.message);
+      }
+    });
+
+    // Auth State
+    auth.onAuthStateChanged(async (user) => {
+      if (user) {
+        currentUser = user;
+        document.getElementById('loginScreen').classList.add('hidden');
+        document.getElementById('sidebar').classList.remove('hidden');
+        document.getElementById('mainContent').classList.remove('hidden');
+        updateUserInfo(user);
+        renderApps();
+      } else {
+        currentUser = null;
+        document.getElementById('loginScreen').classList.remove('hidden');
+        document.getElementById('sidebar').classList.add('hidden');
+        document.getElementById('mainContent').classList.add('hidden');
+      }
+    });
+
+    // Sign In - tenta popup primeiro, fallback para redirect se COOP bloquear
+    async function signInWithGoogle() {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      try {
+        await auth.signInWithPopup(provider);
+        showToast('Login realizado com sucesso!', 'success');
+      } catch (error) {
+        if (
+          error.code === 'auth/popup-blocked' ||
+          error.code === 'auth/popup-closed-by-user' ||
+          error.message?.includes('Cross-Origin-Opener-Policy')
+        ) {
+          // Popup bloqueado por COOP: usa redirect
+          try {
+            await auth.signInWithRedirect(provider);
+          } catch (redirectErr) {
+            showToast('Erro ao fazer login: ' + redirectErr.message, 'error');
+          }
+        } else if (error.code === 'auth/unauthorized-domain') {
+          showToast('Domínio não autorizado. Configure no Firebase Console.', 'error');
+        } else if (error.code !== 'auth/popup-closed-by-user') {
+          showToast('Erro ao fazer login: ' + error.message, 'error');
+          console.error('Erro no login:', error);
+        }
+      }
+    }
+
+    // Sign Out
+    async function signOut() {
+      try {
+        await auth.signOut();
+        showToast('Logout realizado com sucesso!', 'success');
+      } catch (error) {
+        console.error('Erro no logout:', error);
+        showToast('Erro ao fazer logout', 'error');
+      }
+    }
+
+    // Update User Info
+    function updateUserInfo(user) {
+      document.getElementById('userName').textContent = user.displayName || 'Usuário';
+      document.getElementById('userEmail').textContent = user.email;
+      if (user.photoURL) {
+        document.getElementById('userAvatar').src = user.photoURL;
+      }
+    }
+
+    // Render Apps
+    function renderApps() {
+      const appsList = document.getElementById('appsList');
+      appsList.innerHTML = apps.map(app => `
+        <div class="nav-item" onclick="openApp('${app.id}', '${app.url}', '${app.name}')">
+          <svg fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+            ${app.icon}
+          </svg>
+          <span class="nav-item-text">${app.name}</span>
+        </div>
+      `).join('');
+    }
+
+    // Open App
+    async function openApp(appId, url, name) {
+      // Remover active de todos os itens
+      document.querySelectorAll('.nav-item').forEach(item => {
+        item.classList.remove('active');
+      });
+      
+      // Adicionar active ao item clicado
+      event.currentTarget.classList.add('active');
+      
+      // Mostrar loading
+      document.getElementById('emptyState').classList.add('hidden');
+      document.getElementById('appFrame').classList.add('hidden');
+      document.getElementById('loadingOverlay').classList.remove('hidden');
+      
+      // Carregar iframe
+      const iframe = document.getElementById('appFrame');
+      iframe.src = url;
+      
+      // Quando carregar, esconder loading e mostrar iframe
+      iframe.onload = async () => {
+        console.log('✅ Iframe carregado:', name);
+        document.getElementById('loadingOverlay').classList.add('hidden');
+        document.getElementById('appFrame').classList.remove('hidden');
+        
+        // Enviar token de autenticação para o iframe
+        if (currentUser) {
+          try {
+            console.log('🔑 Obtendo token para', currentUser.email);
+            const token = await currentUser.getIdToken();
+            console.log('✅ Token obtido, tamanho:', token.length);
+            
+            const authData = {
+              type: 'HUB_AUTH',
+              token: token,
+              user: {
+                uid: currentUser.uid,
+                email: currentUser.email,
+                displayName: currentUser.displayName,
+                photoURL: currentUser.photoURL
+              }
+            };
+            
+            iframe.contentWindow.postMessage(authData, url);
+            console.log('🔐 Token enviado para', name, 'na origem:', url);
+            console.log('📊 Dados enviados:', authData.user);
+          } catch (error) {
+            console.error('❌ Erro ao enviar token:', error);
+            showToast('Erro ao autenticar com ' + name, 'error');
+          }
+        } else {
+          console.warn('⚠️ Nenhum usuário logado para enviar token');
+        }
+      };
+      
+      // Se der erro, mostrar mensagem
+      iframe.onerror = () => {
+        document.getElementById('loadingOverlay').classList.add('hidden');
+        showToast(`Erro ao carregar ${name}`, 'error');
+      };
+    }
+
+    // Show Toast
+    function showToast(message, type = 'info') {
+      const toast = document.createElement('div');
+      toast.className = `toast toast-${type}`;
+      toast.innerHTML = `<div style="font-weight: 600;">${message}</div>`;
+      document.body.appendChild(toast);
+      
+      setTimeout(() => {
+        toast.remove();
+      }, 5000);
+    }
+  </script>
+</body>
+</html>

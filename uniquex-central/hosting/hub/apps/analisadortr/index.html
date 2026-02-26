@@ -1,0 +1,843 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MPPI - Análise Inteligente de Documentos</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=Space+Mono:wght@400;700&display=swap"
+        rel="stylesheet">
+    <style>
+        /* Estilos base */
+        body {
+            font-family: 'Roboto', sans-serif;
+            background-color: #f4f4f5;
+            /* Tailwind zinc-100 */
+        }
+
+        .font-space-mono {
+            font-family: 'Space Mono', monospace;
+        }
+
+        /* Cores do MPPI (aproximadas da logo) */
+        .mppi-red {
+            color: #C00000;
+        }
+
+        /* Vermelho mais forte, similar ao da logo */
+        .bg-mppi-red {
+            background-color: #C00000;
+        }
+
+        .border-mppi-red {
+            border-color: #C00000;
+        }
+
+        .mppi-text-primary {
+            color: #27272a;
+        }
+
+        /* Tailwind zinc-800 (para textos principais) */
+        .mppi-text-secondary {
+            color: #52525b;
+        }
+
+        /* Tailwind zinc-600 (para textos secundários) */
+
+        /* Estilo dos botões */
+        .btn-primary {
+            background-color: #C00000;
+            /* Vermelho MPPI */
+            color: white;
+            font-weight: 500;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            transition: background-color 0.3s ease;
+        }
+
+        .btn-primary:hover {
+            background-color: #A00000;
+            /* Vermelho MPPI mais escuro */
+        }
+
+        .btn-primary:disabled {
+            background-color: #E0A0A0;
+            /* Vermelho MPPI mais claro e desabilitado */
+            cursor: not-allowed;
+        }
+
+        /* Estilo das seções de conteúdo */
+        .content-area {
+            background-color: white;
+            border: 1px solid #e4e4e7;
+            /* Tailwind zinc-200 */
+            border-radius: 0.5rem;
+            padding: 1.5rem;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+
+        .content-area h3,
+        .content-area h2 {
+            /* Aplicado a Resultado da Análise e Parecer Final */
+            font-family: 'Space Mono', monospace;
+            color: #C00000;
+            /* Vermelho MPPI */
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+            border-bottom: 2px solid #f4f4f5;
+            /* Fundo zinco-100 para um sublinhado claro */
+            padding-bottom: 0.5rem;
+        }
+
+        /* Estilização customizada para o input de arquivo */
+        .custom-file-input::-webkit-file-upload-button {
+            visibility: hidden;
+        }
+
+        .custom-file-input::before {
+            content: 'Selecionar PDF';
+            display: inline-block;
+            background: #D1D5DB;
+            /* Tailwind gray-300 */
+            border: 1px solid #9CA3AF;
+            /* Tailwind gray-400 */
+            border-radius: 0.375rem;
+            /* rounded-md */
+            padding: 0.5rem 0.75rem;
+            outline: none;
+            white-space: nowrap;
+            -webkit-user-select: none;
+            user-select: none;
+            cursor: pointer;
+            font-weight: 500;
+            font-size: 0.875rem;
+            /* text-sm */
+            color: #374151;
+            /* Tailwind gray-700 */
+        }
+
+        .custom-file-input:hover::before {
+            background-color: #E5E7EB;
+            /* Tailwind gray-200 */
+        }
+
+        .custom-file-input:active::before {
+            background-color: #F3F4F6;
+            /* Tailwind gray-100 */
+        }
+
+        .file-name-display {
+            margin-top: 0.5rem;
+            font-style: italic;
+            color: #52525b;
+            /* Tailwind zinc-600 */
+            font-size: 0.875rem;
+            /* text-sm */
+        }
+
+        /* Estilos dos cards de quesito */
+        .quesito-card {
+            border: 1px solid #e4e4e7;
+            /* zinc-200 */
+            border-radius: 0.375rem;
+            /* rounded-md */
+            margin-bottom: 1rem;
+            background-color: #ffffff;
+            /* white */
+            box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+            overflow: hidden;
+            /* Importante para bordas arredondadas e que nada vaze */
+            transition: background-color 0.3s ease, border-color 0.3s ease;
+            /* Transição suave */
+        }
+
+        .quesito-card strong {
+            color: #3f3f46;
+            /* zinc-700 */
+        }
+
+        .quesito-card p {
+            margin-bottom: 0.5rem;
+            font-size: 0.875rem;
+            /* text-sm */
+            line-height: 1.5;
+        }
+
+        .quesito-title {
+            font-weight: 500;
+            color: #18181b;
+            /* zinc-900 */
+        }
+
+        /* Cores de status dos cards de quesito */
+        .quesito-card.status-processando {
+            background-color: #e6f0fc;
+            /* Azul bem claro */
+            border-color: #a4c4e5;
+            /* Azul mais suave */
+        }
+
+        .quesito-card.status-sim {
+            background-color: #e6f7ed;
+            /* Verde bem claro */
+            border-color: #8cdeab;
+            /* Verde mais suave */
+        }
+
+        .quesito-card.status-nao {
+            background-color: #fce7e7;
+            /* Vermelho bem claro */
+            border-color: #e5a4a4;
+            /* Vermelho mais suave */
+        }
+
+        .quesito-card.status-em-parte {
+            background-color: #fffbe6;
+            /* Amarelo bem claro */
+            border-color: #ffe08c;
+            /* Amarelo mais suave */
+        }
+
+        .quesito-card.status-erro-ia {
+            background-color: #f7e6e6;
+            /* Vermelho claro para erro */
+            border-color: #e09999;
+            /* Vermelho mais forte */
+        }
+
+        /* Cores do status geral (mensagens) */
+        .status-loading {
+            color: #f59e0b;
+            /* amber-500 */
+            font-weight: 500;
+        }
+
+        .status-completed {
+            color: #16a34a;
+            /* green-600 */
+            font-weight: 500;
+        }
+
+        .status-error {
+            color: #dc2626;
+            /* red-600 */
+            font-weight: 500;
+        }
+
+        /* Estilo da área de código (pre) */
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            background-color: #f9fafb;
+            /* gray-50 */
+            padding: 0.75rem;
+            border-radius: 0.25rem;
+            /* rounded-sm */
+            font-size: 0.875rem;
+            border: 1px solid #f3f4f6;
+            /* gray-100 */
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        /* Estilos do relatório final */
+        #finalReportArea {
+            margin-top: 2rem;
+        }
+
+        #finalReportContent ul {
+            list-style-type: disc;
+            margin-left: 1.5rem;
+            padding-left: 0.5rem;
+        }
+
+        #finalReportContent h4 {
+            font-size: 1rem;
+            font-weight: 500;
+            color: #C00000;
+            /* MPPI Red */
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        /* Animações */
+        .animate-pulse-custom {
+            animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: .5;
+            }
+        }
+
+        @keyframes spinner-border {
+            to {
+                transform: rotate3d(0, 0, 1, 360deg);
+            }
+        }
+
+        .status-loading-spinner {
+            display: inline-block;
+            width: 1em;
+            height: 1em;
+            vertical-align: text-bottom;
+            border: 0.15em solid currentColor;
+            border-right-color: transparent;
+            border-radius: 50%;
+            -webkit-animation: spinner-border .75s linear infinite;
+            animation: spinner-border .75s linear infinite;
+        }
+
+        /* Estilo de erro para input/file-name-display */
+        .input-error-border {
+            border-color: #dc2626;
+            /* red-600 */
+        }
+
+        /* Estilos para o Acordeão */
+        .accordion-header {
+            cursor: pointer;
+            padding: 0.75rem 1rem;
+            background-color: #f9fafb;
+            border-bottom: 1px solid #e4e4e7;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .accordion-content {
+            padding: 1rem;
+            border-top: none;
+            display: none;
+            background-color: #ffffff;
+        }
+
+        .accordion-content.open {
+            display: block;
+        }
+
+        .accordion-arrow {
+            transition: transform 0.3s ease;
+        }
+
+        .accordion-arrow.open {
+            transform: rotate(90deg);
+        }
+
+        /* Pontuação - Cores */
+        .score-grade-excellent {
+            color: #16a34a;
+        }
+
+        /* green-600 */
+        .score-grade-good {
+            color: #f59e0b;
+        }
+
+        /* amber-500 */
+        .score-grade-average {
+            color: #F87171;
+        }
+
+        /* red-400 */
+        .score-grade-poor {
+            color: #dc2626;
+        }
+
+        /* red-600 */
+    </style>
+</head>
+
+<body class="mppi-text-primary">
+
+    <header class="bg-white shadow-md py-4">
+        <div class="container mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between">
+            <div class="flex items-center">
+                <img src="https://storage.googleapis.com/project-osprey-prod-users-assets/USER_ID_REDACTED/uploaded:image_5ff8d4.png-c58c6486-ea0b-4d47-ba77-d3cd3df0aec8"
+                    alt="Logo MPPI" class="h-12 sm:h-16 mr-3"
+                    onerror="this.onerror=null; this.src='https://placehold.co/150x50/C00000/FFFFFF?text=MPPI';">
+                <div>
+                    <h1 class="font-space-mono text-xl sm:text-2xl font-bold mppi-red">Ministério Público</h1>
+                    <p class="text-xs sm:text-sm mppi-text-secondary font-medium">do Estado do Piauí</p>
+                </div>
+            </div>
+            <h2 class="font-space-mono text-lg sm:text-xl font-semibold mppi-text-primary text-right">Análise
+                Inteligente de Documentos</h2>
+        </div>
+    </header>
+
+    <main class="container mx-auto p-4 sm:p-6 lg:p-8">
+        <div class="bg-white p-6 sm:p-8 rounded-lg shadow-xl">
+            <div class="text-center mb-6">
+                <h2 class="text-2xl sm:text-3xl font-bold font-space-mono mppi-text-primary mb-2">Análise de Termos de
+                    Referência</h2>
+                <p class="mppi-text-secondary text-sm sm:text-base">
+                    Selecione o documento PDF para análise automática com base no checklist padrão.
+                </p>
+            </div>
+
+            <div class="mb-6 p-6 rounded-lg border border-zinc-200 bg-zinc-50">
+                <label for="file-input" class="block text-lg font-space-mono mppi-red mb-3">1. Selecione o Documento
+                    (PDF)</label>
+                <div class="flex items-center space-x-4">
+                    <input type="file" id="file-input" class="custom-file-input" accept=".pdf">
+                    <span id="file-name-display" class="file-name-display flex-grow">Nenhum arquivo selecionado.</span>
+                </div>
+            </div>
+
+            <div class="text-center my-8">
+                <button id="process-button" class="btn-primary text-base sm:text-lg">
+                    Analisar Documento
+                </button>
+            </div>
+
+            <div id="general-status-area"
+                class="my-6 p-4 rounded-md bg-blue-50 border border-blue-200 text-blue-700 hidden">
+                <p id="general-status-message" class="font-medium">Aguardando início da análise...</p>
+                <div id="progress-bar-container" class="mt-2 w-full bg-gray-200 rounded-full h-2.5 hidden">
+                    <div id="progress-bar" class="bg-mppi-red h-2.5 rounded-full" style="width: 0%"></div>
+                </div>
+            </div>
+
+            <div id="analysis-results-container" class="mt-8 content-area hidden">
+                <h3 id="results-title">Resultado da Análise dos Quesitos</h3>
+                <div id="analysis-results-accordion" class="space-y-2">
+                </div>
+            </div>
+
+            <div id="final-report-container" class="mt-8 content-area hidden">
+                <h2 id="final-report-title">Parecer Final da Análise</h2>
+                <div id="final-report-content" class="text-sm leading-relaxed mppi-text-secondary">
+                    Aguardando parecer final...
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="text-center py-6 mt-10 border-t border-zinc-200">
+        <p class="text-xs mppi-text-secondary">&copy; <span id="currentYear"></span> Xertica.ai. Demonstração para o
+            Ministério Público do Estado do Piauí.</p>
+        <p class="text-xs mppi-text-secondary mt-1">Interface de demonstração.</p>
+    </footer>
+
+    <script>
+        // Lista de 15 perguntas resumida, conforme o backend
+        const checklistQuestionsJS = [
+            { "num": 1, "text": "Há termo de referência?" },
+            { "num": 2, "text": "No Termo de Referência foi apresentado o identificador do PCA?" },
+            { "num": 3, "text": "No Termo de Referência há justificativa para inclusão excepcional da demanda no PCA?" },
+            { "num": 4, "text": "No termo de Referência há definição clara de prazos, métodos e rotinas de execução?" },
+            { "num": 5, "text": "No Termo de Referência os critérios de sustentabilidade estão alinhados ao Guia Nacional de Contratações Sustentáveis?" },
+            { "num": 6, "text": "No Termo de Referência foi realizada uma análise de riscos com medidas de mitigação?" },
+            { "num": 7, "text": "O Termo de Referência contém a definição do objeto, incluídos sua natureza, os quantitativos e as unidades de medida?" },
+            { "num": 8, "text": "O Termo de Referência contém fundamentação da necessidade da contratação, do quantitativo do objeto e, se for o caso, do tipo de solução escolhida, que poderá consistir na referência ao estudo técnico preliminar correspondente, quando este for realizado e divulgado previamente ao processamento da licitação ou da contratação direta?" },
+            { "num": 9, "text": "O Termo de Referência evidencia, para as contratações que envolvam bens ou serviços de informática e telecomunicação, o alinhamento com as necessidades tecnológicas e de negócio?" },
+            { "num": 10, "text": "No Termo de Referência há justificativa para o parcelamento ou não da contratação, que poderá consistir na referência ao estudo técnico preliminar quando este for realizado e divulgado previamente ao processamento da licitação ou da contratação direta?" },
+            { "num": 11, "text": "No Termo de Referência há previsão da vedação ou da participação de empresas sob a forma de consórcio ou cooperativa no processo de contratação e justificativa para o caso de vedação?" },
+            { "num": 12, "text": "No Termo de Referência há descrição da solução como um todo, considerado todo o ciclo de vida do objeto, bem como suas especificações técnicas?" },
+            { "num": 13, "text": "O Termo de Referência apresenta o modelo de execução do objeto, que consiste na definição de como o contrato deverá produzir os resultados pretendidos desde o seu início até o seu encerramento, incluindo as informações de prazo de início da prestação, local, regras para o recebimento provisório e definitivo, quando for o caso, incluindo regras para a inspeção, se aplicável, e demais condições necessárias para a execução dos serviços ou o fornecimento de bens?" },
+            { "num": 14, "text": "No Termo de Referência há especificação da garantia do produto a ser exigida e das condições de manutenção e assistência técnica, quando for o caso?" },
+            { "num": 15, "text": "O Termo de Referência apresenta o valor máximo estimado unitário e global da contratação, acompanhado de anexo contendo memórias de cálculo e documentos que lhe dão suporte, com os parâmetros utilizados para a obtenção dos preços e para os respectivos cálculos, salvo se adotado orçamento com caráter sigiloso?" },
+            { "num": 16, "text": "O Termo de Referência apresenta justificativa para a adoção de orçamento sigiloso, se for o caso?" },
+            { "num": 17, "text": "O Termo de Referência apresenta a classificação orçamentária da despesa, exceto quando se tratar de processos para formação de registro de preços, os quais deverão indicar apenas o código do elemento de despesa correspondente?" },
+            { "num": 18, "text": "O Termo de Referência estabelece parâmetros, nas hipóteses previstas pela Lei Complementar Federal nº 123, de 14 de dezembro de 2006, de reserva de cota ou a exclusividade da licitação para os beneficiários da norma?" },
+            { "num": 19, "text": "O Termo de Referência estabelece a modalidade de licitação, critério de julgamento e modo de disputa, apresentando motivação sobre a adequação e eficiência da combinação desses parâmetros?" },
+            { "num": 20, "text": "O Termo de Referência define o prazo de validade, condições da proposta e, quando for o caso, a exigência de amostra, exame de conformidade ou prova de conceito, entre outros testes de interesse da Administração?" },
+            { "num": 21, "text": "O Termo de Referência estabelece parâmetros objetivos de avaliação de propostas quando se tratar de licitação de melhor técnica ou de técnica e preço?" },
+            { "num": 22, "text": "O Termo de Referência define as exigências para Habilitação Jurídica, Habilitação Fiscal, Social e Trabalhista, Qualificação Econômico-Financeira e Qualificação Técnica, quando necessários, e devidamente justificados quanto aos percentuais de aferição adotados, incluindo a previsão de haver vistoria técnica prévia, quando for o caso?" },
+            { "num": 23, "text": "O Termo de Referência estabelece o prazo do contrato e, se for o caso, a possibilidade de sua prorrogação?" },
+            { "num": 24, "text": "O Termo de Referência define o prazo para a assinatura do contrato?" },
+            { "num": 25, "text": "O Termo de Referência estabelece os requisitos da contratação, limitados àqueles necessários e indispensáveis para o atendimento da necessidade pública, incluindo especificação de procedimentos para transição contratual, quando for o caso?" },
+            { "num": 26, "text": "O Termo de Referência define as obrigações da contratante, exceto quando corresponderem àquelas previstas em instrumentos padronizados a serem utilizados na licitação, hipótese em que deverão ser descritas apenas as obrigações específicas relativas ao objeto pretendido?" },
+            { "num": 27, "text": "O Termo de Referência estabelece as obrigações da contratada, exceto quando corresponderem àquelas previstas em instrumentos padronizados a serem utilizados na licitação, hipótese em que deverão ser descritas apenas as obrigações específicas relativas ao objeto pretendido?" },
+            { "num": 28, "text": "O Termo de Referência define a previsão e condições de prestação da garantia contratual, quando exigida?" },
+            { "num": 29, "text": "O Termo de Referência estabelece a previsão das condições para subcontratação ou justificativa para sua vedação na contratação pretendida?" },
+            { "num": 30, "text": "O Termo de Referência define o modelo de gestão do contrato, que descreve como a execução do objeto será acompanhada e fiscalizada pelo órgão ou entidade no caso em concreto, exceto quando corresponder àquele previsto em instrumentos padronizados a serem utilizados na licitação, hipótese em que deverão ser descritas apenas as condições específicas da gestão do objeto pretendido?" },
+            { "num": 31, "text": "O Termo de Referência estabelece critérios e prazos de medição e de pagamento?" },
+            { "num": 32, "text": "O Termo de Referência define as sanções administrativas, exceto quando corresponderem àquelas previstas em instrumentos padronizados a serem utilizados na licitação, hipótese em que deverão ser descritas apenas as penalidades específicas relativas ao objeto pretendido, bem como os percentuais de multa a serem preenchidos nos referidos documentos padronizados?" },
+            { "num": 33, "text": "O Termo de Referência estabelece direitos autorais e propriedade intelectual, bem como sigilo e segurança dos dados, se for o caso?" },
+            { "num": 34, "text": "O Termo de Referência define, para os processos de contratação de serviços que envolvam bens ou serviços de informática e telecomunicação, os parâmetros e elementos descritivos definidos pela CTI?" },
+            { "num": 35, "text": "O Termo de Referência estabelece demais condições necessárias à execução dos serviços ou fornecimento?" }
+        ];
+
+        // Mapeamento de elementos DOM
+        const fileInput = document.getElementById('file-input');
+        const fileNameDisplay = document.getElementById('file-name-display');
+        const processButton = document.getElementById('process-button');
+        const analysisResultsAccordion = document.getElementById('analysis-results-accordion');
+        const finalReportContentDiv = document.getElementById('final-report-content');
+        const generalStatusArea = document.getElementById('general-status-area');
+        const generalStatusMessage = document.getElementById('general-status-message');
+        const progressBarContainer = document.getElementById('progress-bar-container');
+        const progressBar = document.getElementById('progress-bar');
+        const analysisResultsContainer = document.getElementById('analysis-results-container');
+        const finalReportContainer = document.getElementById('final-report-container');
+
+        // Define o ano atual no rodapé
+        document.getElementById('currentYear').textContent = new Date().getFullYear();
+
+        // Event listener para exibir o nome do arquivo selecionado
+        fileInput.addEventListener('change', function () {
+            if (this.files && this.files.length > 0) {
+                fileNameDisplay.textContent = `Arquivo: ${this.files[0].name}`;
+                // Remover styles de erro caso o usuário corrija a seleção
+                fileInput.classList.remove('input-error-border');
+                fileNameDisplay.classList.remove('status-error');
+            } else {
+                fileNameDisplay.textContent = 'Nenhum arquivo selecionado.';
+            }
+        });
+
+        // Função para inicializar/resetar a UI, montando os esqueletos dos quesitos
+        function initializeUI() {
+            analysisResultsAccordion.innerHTML = ''; // Limpa resultados anteriores
+            finalReportContentDiv.innerHTML = '<p class="status-loading">Aguardando parecer final...</p>'; // Reset do parecer final
+            generalStatusMessage.textContent = 'Aguardando início da análise...'; // Reset da mensagem de status
+            progressBar.style.width = '0%'; // Reset da barra de progresso
+            progressBarContainer.classList.add('hidden'); // Oculta barra
+            analysisResultsContainer.classList.add('hidden'); // Oculta seção de resultados
+            finalReportContainer.classList.add('hidden'); // Oculta seção do parecer final
+            generalStatusArea.classList.add('hidden'); // Oculta área de status geral
+
+            checklistQuestionsJS.forEach(q => {
+                const quesitoId = `quesito-content-${q.num}`;
+                const headerId = `quesito-header-${q.num}`;
+
+                const accordionItem = document.createElement('div');
+                // Todos os cards começam com a classe de processando e overflow-hidden
+                accordionItem.className = 'quesito-card overflow-hidden status-processando';
+
+                const header = document.createElement('div');
+                header.id = headerId;
+                header.className = 'accordion-header transition-colors duration-200 ease-in-out hover:bg-zinc-100';
+                header.innerHTML = `
+        <span class="quesito-title text-sm font-medium">Quesito ${q.num}: ${q.text.substring(0, 80)}${q.text.length > 80 ? '...' : ''}</span>
+        <div class="flex items-center">
+          <span id="status-icon-${q.num}" class="status-loading mr-2 text-xs"><span class="status-loading-spinner"></span> Processando...</span>
+          <!-- Ícone de seta para o acordeão -->
+          <svg class="accordion-arrow w-5 h-5 text-zinc-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path></svg>
+        </div>
+      `;
+
+                const content = document.createElement('div');
+                content.id = quesitoId;
+                content.className = 'accordion-content';
+                content.innerHTML = `
+        <p class="mb-1"><strong class="text-zinc-600">Texto Completo:</strong> ${q.text}</p>
+        <p><strong class="text-zinc-600">Atendimento (IA):</strong> <span class="atendimento-val">Aguardando...</span></p>
+        <p><strong class="text-zinc-600">Justificativa (IA):</strong></p>
+        <pre class="justificativa-val bg-zinc-50 p-2 border border-zinc-200 rounded text-xs max-h-32 overflow-y-auto">Aguardando...</pre>
+        <p><strong class="text-zinc-600">Fund. Lei 14.133/2021:</strong> <span class="lei14133-val">Aguardando...</span></p>
+        <p><strong class="text-zinc-600">Fund. Decreto Est. 21.872/2023:</strong> <span class="decreto21872-val">Aguardando...</span></p>
+        <p><strong class="text-zinc-600">Outras Referências:</strong> <span class="outrasrefs-val">Aguardando...</span></p>
+      `;
+
+                accordionItem.appendChild(header);
+                accordionItem.appendChild(content);
+                analysisResultsAccordion.appendChild(accordionItem);
+
+                // Event listener para abrir/fechar o acordeão
+                header.addEventListener('click', () => {
+                    const isOpen = content.classList.contains('open');
+                    // Fecha todos os outros acordeões abertos
+                    document.querySelectorAll('.accordion-content.open').forEach(openContent => {
+                        if (openContent.id !== quesitoId) { // Não fecha o que acabou de ser clicado se já estiver aberto
+                            openContent.classList.remove('open');
+                            // Encontra o irmão anterior (header) do conteúdo e remove a classe 'open' da seta
+                            openContent.previousElementSibling.querySelector('.accordion-arrow').classList.remove('open');
+                        }
+                    });
+                    // Abre/fecha o acordeão clicado
+                    content.classList.toggle('open');
+                    header.querySelector('.accordion-arrow').classList.toggle('open');
+                });
+            });
+        }
+
+        // Event listener para o botão "Analisar Documento"
+        processButton.addEventListener('click', async function () {
+            const selectedFile = fileInput.files[0];
+
+            // Validação da seleção de arquivo
+            if (!selectedFile) {
+                generalStatusArea.classList.remove('hidden');
+                generalStatusMessage.textContent = 'Por favor, selecione um arquivo PDF.';
+                generalStatusMessage.className = 'status-error font-medium';
+                fileInput.classList.add('input-error-border'); // Adiciona borda vermelha ao input
+                fileNameDisplay.classList.add('status-error'); // Adiciona cor vermelha ao texto
+                setTimeout(() => { // Remove os estilos de erro após 3 segundos
+                    fileInput.classList.remove('input-error-border');
+                    fileNameDisplay.classList.remove('status-error');
+                }, 3000);
+                return;
+            }
+            if (selectedFile.type !== "application/pdf") {
+                generalStatusArea.classList.remove('hidden');
+                generalStatusMessage.textContent = 'Formato de arquivo inválido. Por favor, selecione um PDF.';
+                generalStatusMessage.className = 'status-error font-medium';
+                fileInput.value = ''; // Limpa a seleção de arquivo
+                fileNameDisplay.textContent = 'Nenhum arquivo selecionado.';
+                fileInput.classList.add('input-error-border');
+                fileNameDisplay.classList.add('status-error');
+                setTimeout(() => {
+                    fileInput.classList.remove('input-error-border');
+                    fileNameDisplay.classList.remove('status-error');
+                }, 3000);
+                return;
+            }
+
+            // Inicializa/reseta a UI 
+            initializeUI();
+            analysisResultsContainer.classList.remove('hidden');
+            generalStatusArea.classList.remove('hidden');
+            generalStatusMessage.textContent = 'Enviando arquivo e iniciando análise...';
+            generalStatusMessage.className = 'status-loading font-medium animate-pulse-custom'; // Adiciona animação de pulso
+            progressBarContainer.classList.remove('hidden');
+            progressBar.style.width = '5%'; // Progresso inicial
+            processButton.disabled = true; // Desabilita o botão para evitar cliques múltiplos
+            processButton.textContent = 'Processando...';
+
+            // Prepara o FormData
+            const formData = new FormData();
+            formData.append('pdf_file', selectedFile);
+
+            // URL do seu backend Flask Hosted no Google Cloud Run
+            const backendUrl = 'https://xertica-341913680813.us-central1.run.app';
+
+            let questionsProcessed = 0;
+
+            try {
+                // Inicia a requisição fetch para o backend
+                const response = await fetch(`${backendUrl}/api/analyze`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                // Valida a resposta HTTP inicial (ex: 400, 500)
+                if (!response.ok) {
+                    let errorMsg = `Erro HTTP: ${response.status}`;
+                    try {
+                        const errData = await response.json();
+                        errorMsg = errData.error || `Erro ${response.status}: ${response.statusText}`;
+                    } catch (e) {
+                        /* Ignora se a resposta de erro não for JSON */
+                    }
+                    throw new Error(errorMsg);
+                }
+
+                // Verifica se o corpo da resposta está disponível para streaming
+                if (!response.body) {
+                    throw new Error('Resposta do servidor sem corpo para streaming.');
+                }
+                generalStatusMessage.textContent = 'Análise em progresso...';
+
+                // Inicia a leitura do stream SSE
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+
+                // Loop para ler eventos do stream
+                while (true) {
+                    const { value, done } = await reader.read();
+                    if (done) {
+                        // Stream encerrado pelo servidor. O evento 'stream_complete' é o indicador mais confiável.
+                        break;
+                    }
+
+                    buffer += decoder.decode(value, { stream: true });
+                    let eolIndex;
+                    while ((eolIndex = buffer.indexOf('\n\n')) >= 0) {
+                        const eventChunk = buffer.substring(0, eolIndex);
+                        buffer = buffer.substring(eolIndex + 2);
+
+                        let eventType = 'message';
+                        let eventData = '';
+                        const lines = eventChunk.split('\n');
+
+                        // Processa cada linha do chunk para obter o tipo de evento e dados
+                        for (const line of lines) {
+                            if (line.startsWith('event:')) {
+                                eventType = line.substring(6).trim();
+                            } else if (line.startsWith('data:')) {
+                                eventData += line.substring(5);
+                            }
+                        }
+
+                        if (eventData) {
+                            try {
+                                const jsonData = JSON.parse(eventData);
+                                if (eventType === 'message') {
+                                    // Atualiza a UI para quesitos individuais
+                                    updateQuestionUI(jsonData);
+                                    questionsProcessed++;
+                                    // Calcula e atualiza a barra de progresso (limite de 90% para deixar 10% para o parecer final)
+                                    const progress = Math.min(90, Math.round((questionsProcessed / checklistQuestionsJS.length) * 90));
+                                    progressBar.style.width = `${progress}%`;
+                                } else if (eventType === 'final_summary') {
+                                    // Exibe o parecer final
+                                    finalReportContainer.classList.remove('hidden');
+                                    displayFinalReport(jsonData);
+                                    progressBar.style.width = `95%`; // Progresso quase completo
+                                } else if (eventType === 'status') {
+                                    // Atualiza a mensagem de status geral
+                                    generalStatusMessage.textContent = jsonData.message;
+                                } else if (eventType === 'stream_complete') {
+                                    // Finaliza a análise
+                                    generalStatusMessage.textContent = jsonData.message || 'Análise completa.';
+                                    generalStatusMessage.className = 'status-completed font-medium'; // Remove animação e define status completo
+                                    progressBar.style.width = '100%';
+                                    // Oculta a barra de progresso após um curto atraso
+                                    setTimeout(() => progressBarContainer.classList.add('hidden'), 2000);
+                                    processButton.disabled = false; // Reabilita o botão
+                                    processButton.textContent = 'Analisar Outro Documento'; // Altera texto do botão
+                                    await reader.cancel(); // Cancela o leitor do stream
+                                    return; // Sai do loop de processamento
+                                }
+                            } catch (e) {
+                                console.error('Erro ao parsear JSON do evento SSE:', e, 'Dados:', eventData);
+                                generalStatusMessage.textContent = `Erro ao processar dados: ${e.message}`;
+                                generalStatusMessage.className = 'status-error font-medium';
+                            }
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Erro no fetch ou stream:', error);
+                generalStatusMessage.textContent = `Falha na comunicação ou processamento: ${error.message}`;
+                generalStatusMessage.className = 'status-error font-medium';
+                progressBar.style.width = '100%';
+                progressBar.classList.remove('bg-mppi-red');
+                progressBar.classList.add('bg-red-500'); // Barra de progresso vermelha em caso de erro
+
+            } finally {
+                // Garante que o botão seja reabilitado e o texto restaurado se o stream não terminar normalmente
+                if (processButton.disabled) {
+                    processButton.disabled = false;
+                    processButton.textContent = 'Analisar Documento';
+                }
+            }
+        });
+
+        // Função para atualizar a UI de um quesito individual
+        function updateQuestionUI(data) {
+            const quesitoNum = data["Nº do Quesito"];
+            const itemContentDiv = document.getElementById(`quesito-content-${quesitoNum}`);
+            const statusIconSpan = document.getElementById(`status-icon-${quesitoNum}`);
+            const accordionItem = statusIconSpan.closest('.quesito-card'); // Encontra o elemento pai 'quesito-card'
+
+            if (itemContentDiv && statusIconSpan && accordionItem) {
+                const atendimento = data["Atendimento do Quesito"] || "N/A";
+
+                // Atualiza os valores dentro do quesito
+                itemContentDiv.querySelector('.atendimento-val').textContent = atendimento;
+                itemContentDiv.querySelector('.justificativa-val').textContent = data["Trecho Justificativo (IA)"] || "N/A";
+                itemContentDiv.querySelector('.lei14133-val').textContent = data["FUNDAMENTACAO LEI 14.133/2021"] || "N/A";
+                itemContentDiv.querySelector('.decreto21872-val').textContent = data["FUNDAMENTACAO DECRETO ESTADUAL 21.872/2023"] || "N/A";
+                itemContentDiv.querySelector('.outrasrefs-val').textContent = data["OUTRAS_REFERENCIAS"] || "N/A";
+
+                // Remove todas as classes de status existentes do card antes de adicionar a nova
+                accordionItem.classList.remove('status-sim', 'status-nao', 'status-em-parte', 'status-erro-ia', 'status-processando');
+
+                // Atualiza o ícone e a classe do status, adicionando a classe de cor ao card
+                if (atendimento.toLowerCase().includes("erro")) {
+                    statusIconSpan.innerHTML = '&#10060; Erro na IA'; // Ícone de "X" grande
+                    statusIconSpan.className = 'status-error mr-2 text-xs';
+                    accordionItem.classList.add('status-erro-ia');
+                } else if (atendimento.toLowerCase() === "sim") {
+                    statusIconSpan.innerHTML = '&#10004; Sim'; // Ícone de check
+                    statusIconSpan.className = 'status-completed mr-2 text-xs';
+                    accordionItem.classList.add('status-sim');
+                } else if (atendimento.toLowerCase() === "não") {
+                    statusIconSpan.innerHTML = '&#10006; Não'; // Ícone de "x" menor
+                    statusIconSpan.className = 'status-error mr-2 text-xs';
+                    accordionItem.classList.add('status-nao');
+                } else if (atendimento.toLowerCase() === "em parte") {
+                    statusIconSpan.innerHTML = '&#9888; Em Parte'; // Ícone de aviso
+                    statusIconSpan.className = 'status-loading mr-2 text-xs';
+                    accordionItem.classList.add('status-em-parte');
+                } else { // Para o estado inicial "Processando...", caso seja enviado um evento status-loading
+                    statusIconSpan.innerHTML = `<span class="status-loading-spinner"></span> Processando...`; // Spinner
+                    statusIconSpan.className = 'status-loading mr-2 text-xs';
+                    accordionItem.classList.add('status-processando');
+                }
+            }
+        }
+
+        // Função para exibir o relatório final
+        function displayFinalReport(data) {
+            let html = `<h3 class="font-space-mono mppi-red text-xl mb-3">${data.titulo_parecer || "Parecer Final"}</h3>`;
+
+            // Adiciona a nota geral da IA
+            const notaGeral = parseFloat(data.nota_geral_ia);
+            let notaClass = 'score-grade-poor'; // Default para notas baixas
+            if (notaGeral >= 8.0) {
+                notaClass = 'score-grade-excellent'; // Verde
+            } else if (notaGeral >= 6.0) {
+                notaClass = 'score-grade-good'; // Laranja/Amarelo
+            } else if (notaGeral >= 4.0) {
+                notaClass = 'score-grade-average'; // Vermelho mais claro
+            }
+
+            html += `<p class="mb-2"><strong>Nota Geral da Análise (IA):</strong> <span class="font-bold text-lg ${notaClass}">${data.nota_geral_ia || "N/A"}/10</span></p>`;
+
+
+            // Define a classe de cor para a avaliação geral
+            let avaliacaoClass = 'mppi-text-primary';
+            if (data.avaliacao_geral) {
+                const lowerCaseAvaliacao = data.avaliacao_geral.toLowerCase();
+                if (lowerCaseAvaliacao.includes('regular') || lowerCaseAvaliacao.includes('em conformidade') || lowerCaseAvaliacao.includes('satisfatório') || lowerCaseAvaliacao.includes('bem elaborado')) {
+                    avaliacaoClass = 'status-completed'; // Verde
+                } else if (lowerCaseAvaliacao.includes('ressalvas') || lowerCaseAvaliacao.includes('necessita readequação') || lowerCaseAvaliacao.includes('moderado') || lowerCaseAvaliacao.includes('atenção')) {
+                    avaliacaoClass = 'status-loading'; // Amarelo/Laranja
+                } else if (lowerCaseAvaliacao.includes('óbices') || lowerCaseAvaliacao.includes('crítico') || lowerCaseAvaliacao.includes('significativo') || lowerCaseAvaliacao.includes('erro')) {
+                    avaliacaoClass = 'status-error'; // Vermelho
+                }
+            }
+            html += `<p class="mb-2"><strong>Avaliação Geral:</strong> <span class="font-medium ${avaliacaoClass}">${data.avaliacao_geral || "N/A"}</span></p>`;
+
+            if (data.pontos_positivos && data.pontos_positivos.length > 0) {
+                html += `<h4 class="text-md font-semibold mt-3 mb-1 text-green-700">Pontos Positivos:</h4><ul class="list-disc list-inside pl-4 text-sm">`;
+                data.pontos_positivos.forEach(p => { html += `<li>${p}</li>`; });
+                html += `</ul>`;
+            } else {
+                html += `<p class="mt-3"><strong>Pontos Positivos:</strong> <span class="text-sm">Nenhum ponto positivo específico destacado.</span></p>`;
+            }
+
+            if (data.pontos_de_atencao_riscos && data.pontos_de_atencao_riscos.length > 0) {
+                html += `<h4 class="text-md font-semibold mt-3 mb-1 text-red-700">Pontos de Atenção/Riscos:</h4><ul class="list-disc list-inside pl-4 text-sm">`;
+                data.pontos_de_atencao_riscos.forEach(p => { html += `<li>${p}</li>`; });
+                html += `</ul>`;
+            } else {
+                html += `<p class="mt-3"><strong>Pontos de Atenção/Riscos:</strong> <span class="text-sm">Nenhum ponto de atenção ou risco específico destacado, ou todos os quesitos foram atendidos.</span></p>`;
+            }
+
+            if (data.recomendacoes_gerais && data.recomendacoes_gerais.length > 0) {
+                html += `<h4 class="text-md font-semibold mt-3 mb-1 text-blue-700">Recomendações Gerais:</h4><ul class="list-disc list-inside pl-4 text-sm">`;
+                data.recomendacoes_gerais.forEach(p => { html += `<li>${p}</li>`; });
+                html += `</ul>`;
+            } else {
+                html += `<p class="mt-3"><strong>Recomendações Gerais:</strong> <span class="text-sm">Nenhuma recomendação geral fornecida.</span></p>`;
+            }
+            finalReportContentDiv.innerHTML = html;
+            finalReportContentDiv.className = ''; // Remove a classe de carregamento/default
+        }
+
+        // Inicializa a UI na carga da página
+        initializeUI();
+        // Remove o textarea de prompt, pois as perguntas são hardcoded (se ele existir no HTML)
+        const promptTextarea = document.getElementById('prompt-input');
+        if (promptTextarea) promptTextarea.parentElement.remove();
+
+    </script>
+</body>
+
+</html>

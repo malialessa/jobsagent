@@ -1,0 +1,80 @@
+<!-- 
+  ADICIONE ESTE CÓDIGO NO FINAL DO <body> em:
+  - /workspaces/jobsagent/jobsagent/public/index.html
+-->
+
+<script>
+// ========================================
+// AUTENTICAÇÃO CENTRALIZADA VIA HUBAMALIA
+// ========================================
+
+let hubUser = null;
+let hubToken = null;
+
+// Escutar mensagens do Hub
+window.addEventListener('message', async (event) => {
+  // Aceitar apenas do domínio do hub
+  if (event.origin !== 'https://hubamalia.web.app') {
+    console.warn('Mensagem de origem não autorizada:', event.origin);
+    return;
+  }
+
+  const data = event.data;
+  
+  if (data.type === 'HUB_AUTH') {
+    console.log('🔐 Token recebido do HubAmalia');
+    
+    hubToken = data.token;
+    hubUser = data.user;
+    
+    console.log('✅ Usuário autenticado:', hubUser.email);
+    
+    // Disparar evento customizado
+    window.dispatchEvent(new CustomEvent('hub-auth-ready', { 
+      detail: { user: hubUser, token: hubToken }
+    }));
+    
+    // Atualizar UI
+    updateUIWithUser(hubUser);
+  }
+});
+
+// Atualizar UI com dados do usuário
+function updateUIWithUser(user) {
+  // Esconder botões de login se existirem
+  const loginButtons = document.querySelectorAll('[onclick*="login"], .login-btn, #loginBtn');
+  loginButtons.forEach(btn => btn.style.display = 'none');
+  
+  // Se tiver elementos para mostrar informações do usuário
+  const userNameEl = document.querySelector('.user-name, #userName');
+  if (userNameEl) userNameEl.textContent = user.displayName || user.email;
+  
+  const userEmailEl = document.querySelector('.user-email, #userEmail');
+  if (userEmailEl) userEmailEl.textContent = user.email;
+  
+  const userAvatarEl = document.querySelector('.user-avatar, #userAvatar');
+  if (userAvatarEl && user.photoURL) {
+    userAvatarEl.src = user.photoURL;
+    userAvatarEl.alt = user.displayName;
+  }
+}
+
+// Função para fazer requests autenticados
+async function fetchWithAuth(url, options = {}) {
+  if (!hubToken) {
+    throw new Error('Usuário não autenticado');
+  }
+  
+  const headers = {
+    ...options.headers,
+    'Authorization': `Bearer ${hubToken}`
+  };
+  
+  return fetch(url, { ...options, headers });
+}
+
+// Notificar hub que está pronto
+window.parent.postMessage({ type: 'APP_READY' }, 'https://hubamalia.web.app');
+
+console.log('🎯 JobsAgent pronto para autenticação centralizada');
+</script>

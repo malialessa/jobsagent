@@ -1,0 +1,1049 @@
+<!DOCTYPE html>
+<html lang="pt-br" class="h-full bg-gray-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LiciAI - Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <!-- IONICONS CORRIGIDO -->
+    <link href="https://unpkg.com/ionicons@4.5.10-0/dist/css/ionicons.min.css" rel="stylesheet">
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    
+    <!-- UniqueX Auth Bridge -->
+    <script src="/uniquex-auth.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        h1, h2, h3 { font-family: 'Quicksand', sans-serif; font-weight: 700; }
+        .brand-gradient { background: linear-gradient(to right, #0E7490, #10B981); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .card-hover-effect:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); }
+        .card-hover-effect { transition: all 0.2s ease-in-out; }
+        :root { --color-primary-teal: #0E7490; --color-secondary-green: #10B981; }
+        .text-primary-teal { color: var(--color-primary-teal); }
+        .bg-primary-teal { background-color: var(--color-primary-teal); }
+        .border-primary-teal { border-color: var(--color-primary-teal); }
+        .modal-backdrop { position: fixed; inset: 0; background-color: rgba(0, 0, 0, 0.5); display: flex; align-items: center; justify-content: center; z-index: 100; opacity: 0; transition: opacity 0.3s ease; pointer-events: none; }
+        .modal-backdrop.visible { opacity: 1; pointer-events: auto; }
+        .modal-content { background: white; border-radius: 0.75rem; padding: 1.5rem; width: 90%; max-width: 48rem; max-height: 90vh; overflow-y: auto; transform: scale(0.95); transition: transform 0.3s ease; }
+        .modal-backdrop.visible .modal-content { transform: scale(1); }
+        .modal-close-btn { position: absolute; top: 0.75rem; right: 0.75rem; color: #9ca3af; cursor: pointer; }
+        .modal-close-btn:hover { color: #1f2937; }
+        /* Para usar a fonte de ícones */
+        .icon { font-size: 1.5rem; line-height: 1; vertical-align: middle; }
+    </style>
+</head>
+<body class="h-full antialiased">
+    
+    <!-- Login Screen -->
+    <div id="login-section" class="min-h-screen flex items-center justify-center p-4">
+        <div class="max-w-md w-full bg-white p-8 rounded-lg shadow-lg">
+            <div class="flex items-center justify-center mb-6">
+                <svg class="w-10 h-10 mr-2" viewBox="0 0 64 64"><rect x="8" y="26" width="10" height="10" rx="2" fill="#0E7490"/><rect x="18" y="36" width="10" height="10" rx="2" fill="#0E7490"/><rect x="28" y="26" width="10" height="10" rx="2" fill="#10B981"/><rect x="38" y="16" width="10" height="10" rx="2" fill="#10B981"/></svg>
+                <h1 class="text-3xl font-bold brand-gradient">LiciAI</h1>
+            </div>
+            <h2 class="text-2xl font-bold text-gray-800 text-center mb-6">Acesse sua conta</h2>
+            <form id="login-form" class="space-y-4">
+                <div>
+                    <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
+                    <input type="email" id="email" name="email" required autocomplete="username"
+                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-teal-500 focus:border-teal-500 sm:text-sm">
+                </div>
+                <div>
+                    <label for="password" class="block text-sm font-medium text-gray-700">Senha</label>
+                    <input type="password" id="password" name="password" required autocomplete="current-password"
+                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-teal-500 focus:border-teal-500 sm:text-sm">
+                </div>
+                <button type="submit"
+                        class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500">
+                    Entrar
+                </button>
+            </form>
+            <div class="mt-6">
+                <div class="relative">
+                    <div class="absolute inset-0 flex items-center">
+                        <div class="w-full border-t border-gray-300"></div>
+                    </div>
+                    <div class="relative flex justify-center text-sm">
+                        <span class="px-2 bg-white text-gray-500">Ou continue com</span>
+                    </div>
+                </div>
+                <div class="mt-6">
+                    <button id="google-login-btn"
+                            class="w-full flex items-center justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <svg class="w-5 h-5 mr-2" aria-hidden="true" fill="currentColor" viewBox="0 0 1792 1792">
+                            <path d="M896 786q-205 0-385.5 115T128 1280q0 61 24.5 117.5T221 1500q67 61 169 92.5t206 31.5q180 0 357-104T1280 1280q0-61-24.5-117.5T1107 884q-67-61-169-92.5T732 758zM1792 826v100q0 3-1 6t-3 5q-3 3-6 4.5t-9 1.5H1280v128h128q64 0 128 0t128-64 64-128v-128h-128v-128q0-64 0-128-64-128-128-128H1280q0-64 0-128t-64-128-128-64v-128h-128v128q0 64 0 128-64 128-128 128H1280v128h128v128q0 64 0 128t64 128 128 64H1280v128zM128 0h1536q64 0 128 64v1536q0 64-128 128H128q-64 0-128-64V64q0-64 64-128zM896 384q-134 0-244 86.5T384 758v128q0 134 86.5 244T758 1280h128q134 0 244-86.5T1280 896V758q0-134-86.5-244T896 384z"/>
+                        </svg>
+                        Entrar com Google
+                    </button>
+                </div>
+            </div>
+            <p id="error-message" class="text-red-500 text-sm text-center mt-4"></p>
+        </div>
+    </div>
+
+    <!-- Main App Screen -->
+    <div id="app-section" class="hidden min-h-screen flex flex-col">
+        <!-- Header -->
+        <header class="bg-white shadow-sm py-4 px-6 flex items-center justify-between z-10">
+            <div class="flex items-center">
+                <svg class="w-8 h-8 mr-2 text-primary-teal" viewBox="0 0 64 64"><rect x="8" y="26" width="10" height="10" rx="2" fill="currentColor"/><rect x="18" y="36" width="10" height="10" rx="2" fill="currentColor"/><rect x="28" y="26" width="10" height="10" rx="2" fill="var(--color-secondary-green)"/><rect x="38" y="16" width="10" height="10" rx="2" fill="var(--color-secondary-green)"/></svg>
+                <h1 class="text-2xl font-bold brand-gradient">LiciAI</h1>
+            </div>
+            <div class="flex items-center">
+                <span id="user-email-display" class="text-gray-700 mr-4 font-medium"></span>
+                <button id="logout-btn" class="text-gray-500 hover:text-gray-700 transition-colors">
+                    <i class="icon ion-md-log-out"></i> <!-- ÍCONE CORRIGIDO -->
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="flex-grow flex flex-col lg:flex-row bg-gray-100">
+            <!-- Sidebar / Tabs -->
+            <nav class="bg-white p-4 shadow-md lg:w-64 flex lg:flex-col justify-around lg:justify-start border-b lg:border-r border-gray-200">
+                <button id="oportunidades-tab" class="tab-button active flex items-center p-3 text-gray-700 hover:bg-gray-100 rounded-lg text-left transition-colors font-medium">
+                    <i class="icon ion-md-bulb mr-3"></i> Oportunidades <!-- ÍCONE CORRIGIDO -->
+                </button>
+                <button id="ranking-tab" class="tab-button flex items-center p-3 text-gray-700 hover:bg-gray-100 rounded-lg text-left transition-colors font-medium mt-1">
+                    <i class="icon ion-md-trophy mr-3"></i> Ranking <!-- ÍCONE CORRIGIDO -->
+                </button>
+                <button id="configs-tab" class="tab-button flex items-center p-3 text-gray-700 hover:bg-gray-100 rounded-lg text-left transition-colors font-medium mt-1">
+                    <i class="icon ion-md-settings mr-3"></i> Configurações <!-- ÍCONE CORRIGIDO -->
+                </button>
+            </nav>
+
+            <!-- Content Panel -->
+            <div class="flex-grow p-6 overflow-y-auto">
+               <!-- Oportunidades Section -->
+<section id="oportunidades-section" class="tab-content">
+    <h2 class="text-3xl font-bold text-gray-800 mb-6">Oportunidades Recomendadas</h2>
+    
+    <!-- Search/Filter Controls for Oportunidades -->
+    <!-- Bloco de Filtro para OPORTUNIDADES (CORRIGIDO) -->
+<div class="bg-white rounded-xl shadow-md p-4 mb-6 flex flex-col sm:flex-row gap-4 items-center">
+    <input type="text" id="oportunidades-search-input" placeholder="Buscar por objeto da compra..." class="flex-grow px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-teal-500 focus:border-teal-500">
+    <select id="oportunidades-uf-select" class="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-teal-500 focus:border-teal-500 bg-white">
+        <option value="">Todas as UFs</option>
+    </select>
+    <button id="oportunidades-search-btn" class="w-full sm:w-auto bg-teal-600 text-white px-5 py-2 rounded-lg hover:bg-teal-700 transition-colors flex items-center justify-center">
+        <i class="icon ion-md-search mr-1"></i> Buscar
+    </button>
+</div>
+
+    <div id="oportunidades-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <p class="text-gray-500 col-span-full">Carregando oportunidades...</p>
+    </div>
+    <div class="mt-8 text-center">
+        <button id="oportunidades-load-more-btn" class="hidden bg-white text-teal-700 px-6 py-3 rounded-lg border border-teal-600 font-semibold hover:bg-teal-50 transition-colors">
+            Carregar Mais
+        </button>
+    </div>
+</section>
+
+<!-- Ranking Section -->
+<section id="ranking-section" class="tab-content hidden">
+    <h2 class="text-3xl font-bold text-gray-800 mb-6">Ranking de Oportunidades</h2>
+
+    <!-- Search/Filter Controls for Ranking -->
+    <div class="bg-white rounded-xl shadow-md p-4 mb-6 flex flex-col sm:flex-row gap-4 items-center">
+    <input type="text" id="ranking-search-input" placeholder="Buscar por objeto da compra..." class="flex-grow px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-teal-500 focus:border-teal-500">
+    <select id="ranking-uf-select" class="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-teal-500 focus:border-teal-500 bg-white">
+        <option value="">Todas as UFs</option>
+    </select>
+    <button id="ranking-search-btn" class="w-full sm:w-auto bg-teal-600 text-white px-5 py-2 rounded-lg hover:bg-teal-700 transition-colors flex items-center justify-center">
+        <i class="icon ion-md-search mr-1"></i> Buscar
+    </button>
+</div>
+
+    <div id="ranking-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <p class="text-gray-500 col-span-full">Carregando ranking...</p>
+    </div>
+    <div class="mt-8 text-center">
+        <button id="ranking-load-more-btn" class="hidden bg-white text-teal-700 px-6 py-3 rounded-lg border border-teal-600 font-semibold hover:bg-teal-50 transition-colors">
+            Carregar Mais
+        </button>
+    </div>
+</section>
+
+
+      <!-- Configurações Section -->
+                <section id="configs-section" class="tab-content hidden">
+                    <h2 class="text-3xl font-bold text-gray-800 mb-6">Configurações e Palavras-Chave</h2>
+                    <div class="bg-white rounded-xl shadow-md p-6">
+                        <h3 class="text-xl font-semibold text-gray-800 mb-4">Suas Palavras-Chave de Interesse</h3>
+                        <div id="keywords-container" class="flex flex-wrap gap-2 mb-6 min-h-[40px] items-center"></div>
+                        <div class="flex gap-2">
+                            <input type="text" id="new-keyword-input" placeholder="Adicionar nova palavra-chave..." class="flex-grow px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-teal-500 focus:border-teal-500">
+                            <button id="add-keyword-btn" class="bg-teal-600 text-white px-5 py-2 rounded-lg hover:bg-teal-700 transition-colors flex items-center">
+                                <i class="icon ion-md-add mr-1"></i> Adicionar <!-- ÍCONE CORRIGIDO -->
+                            </button>
+                        </div>
+                        <p id="config-message" class="mt-4 text-sm text-gray-600"></p>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal para Detalhes -->
+    <div id="details-modal" class="modal-backdrop">
+        <div class="modal-content relative">
+            <i class="icon ion-md-close modal-close-btn text-3xl" onclick="closeDetailsModal()"></i> <!-- ÍCONE CORRIGIDO -->
+            <div id="modal-body"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- 0. CONFIGURAÇÃO DO FIREBASE ---
+        // Substitua pelos seus próprios dados de configuração do Firebase
+        const firebaseConfig = {
+    apiKey: "AIzaSyA43C0ZrG7F_hUdue0-uG24WPgLkQkNQc0",
+    authDomain: "sharp-footing-475513-c7.firebaseapp.com",
+    projectId: "sharp-footing-475513-c7",
+    storageBucket: "sharp-footing-475513-c7.appspot.com",
+    messagingSenderId: "995790591545",
+    appId: "1:995790591545:web:9e369cc92784ddc7b85fe8"
+};
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const provider = new firebase.auth.GoogleAuthProvider();
+
+        // --- 0.1. CAPTURA GLOBAL DE ERROS ---
+        window.addEventListener('error', function(event) {
+            console.warn('Erro global capturado:', event.error);
+            logErrorFrontend(event.error, 'window.onerror');
+        });
+
+        window.addEventListener('unhandledrejection', function(event) {
+            console.warn('Promise não tratada capturada:', event.reason);
+            logErrorFrontend(event.reason, 'unhandledrejection');
+        });
+
+        // --- 1. ESTADO GLOBAL DA APLICAÇÃO ---
+        // ==================================================================
+        // INÍCIO DA ÁREA MODIFICADA
+        // ==================================================================
+        
+        // Define a URL base para a API no UniqueX
+        const API_BASE_URL = 'https://uniquexhub.web.app/api/liciai';
+        // Fallback para URL direta da função
+        const API_BASE_URL_FALLBACK = 'https://us-central1-uniquex-487718.cloudfunctions.net/liciaiApi';
+        
+        // Reconstrói as URLs dos endpoints para usar a nova base e rotas
+        const API_URL_OPORTUNIDADES = `${API_BASE_URL}/oportunidades`;
+        const API_URL_RANKING = `${API_BASE_URL}/oportunidades`; // Mesmo endpoint com filtro
+        const API_URL_CONFIGS = `${API_BASE_URL}/config`;
+        const API_URL_ADD_KEYWORD = `${API_BASE_URL}/keywords`;
+        const API_URL_REMOVE_KEYWORD = `${API_BASE_URL}/keywords`;
+        const API_URL_DETALHES = `${API_BASE_URL}/contratos`; // TODO: criar endpoint específico
+        const API_URL_LOG_ERROR = `${API_BASE_URL}/logs`;
+
+        // ==================================================================
+        // FIM DA ÁREA MODIFICADA
+        // ==================================================================
+        
+        const PAGE_SIZE = 21; // Defina um tamanho de página
+        const UFS_BRASIL = ['AC', 'AL', 'AP', 'AM', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MT', 'MS', 'MG', 'PA', 'PB', 'PR', 'PE', 'PI', 'RJ', 'RN', 'RS', 'RO', 'RR', 'SC', 'SP', 'SE', 'TO'];
+
+        let appState = {
+            isLoggedIn: false,
+            userEmail: null,
+            uid: null,
+            activeTab: 'oportunidades',
+            keywords: [],
+            oportunidades: { items: [], nextOffset: 0 },
+            ranking: { items: [], nextOffset: 0 },
+            currentOportunidadesSearchQuery: '',
+            currentOportunidadesSearchUf: '',
+            currentRankingSearchQuery: '',
+            currentRankingSearchUf: ''
+        };
+
+        // --- 2. ELEMENTOS DA UI ---
+        const loginSection = document.getElementById('login-section');
+        const appSection = document.getElementById('app-section');
+        const loginForm = document.getElementById('login-form');
+        const emailInput = document.getElementById('email');
+        const passwordInput = document.getElementById('password');
+        const googleLoginBtn = document.getElementById('google-login-btn');
+        const errorMessageDisplay = document.getElementById('error-message');
+        const logoutBtn = document.getElementById('logout-btn');
+        const userEmailDisplay = document.getElementById('user-email-display');
+
+        const oportunidadesTab = document.getElementById('oportunidades-tab');
+        const rankingTab = document.getElementById('ranking-tab');
+        const configsTab = document.getElementById('configs-tab');
+
+        const oportunidadesSection = document.getElementById('oportunidades-section');
+        const rankingSection = document.getElementById('ranking-section');
+        const configsSection = document.getElementById('configs-section');
+
+        const oportunidadesList = document.getElementById('oportunidades-list');
+        const rankingList = document.getElementById('ranking-list');
+        const keywordsContainer = document.getElementById('keywords-container');
+        const newKeywordInput = document.getElementById('new-keyword-input');
+        const addKeywordBtn = document.getElementById('add-keyword-btn');
+        const configMessage = document.getElementById('config-message');
+
+        const detailsModal = document.getElementById('details-modal');
+        const modalBody = document.getElementById('modal-body');
+
+        // Search elements
+        const oportunidadesSearchInput = document.getElementById('oportunidades-search-input');
+        const oportunidadesUfSelect = document.getElementById('oportunidades-uf-select');
+        const oportunidadesSearchBtn = document.getElementById('oportunidades-search-btn');
+
+        const rankingSearchInput = document.getElementById('ranking-search-input');
+        const rankingUfSelect = document.getElementById('ranking-uf-select');
+        const rankingSearchBtn = document.getElementById('ranking-search-btn');
+
+        // ADICIONE os botões "Carregar Mais"
+        const oportunidadesLoadMoreBtn = document.getElementById('oportunidades-load-more-btn');
+        const rankingLoadMoreBtn = document.getElementById('ranking-load-more-btn');
+
+        // --- 3. LÓGICA DE AUTENTICAÇÃO ---
+        async function signIn(email, password) {
+            try {
+                errorMessageDisplay.textContent = '';
+                await auth.signInWithEmailAndPassword(email, password);
+            } catch (error) {
+                console.error("Erro ao fazer login:", error);
+                errorMessageDisplay.textContent = 'Erro ao fazer login: ' + (error.message || 'Verifique suas credenciais.');
+            }
+        }
+
+        async function signInWithGoogle() {
+            try {
+                errorMessageDisplay.textContent = '';
+                await auth.signInWithPopup(provider);
+            } catch (error) {
+                console.error("Erro ao fazer login com Google:", error);
+                errorMessageDisplay.textContent = 'Erro ao fazer login com Google: ' + (error.message || 'Tente novamente.');
+            }
+        }
+
+        async function signOutUser() {
+            try {
+                await auth.signOut();
+            } catch (error) {
+                console.error("Erro ao fazer logout:", error);
+                alert("Erro ao fazer logout.");
+            }
+        }
+
+        // --- 4. FUNÇÕES DE DADOS (API) ---
+        async function logErrorFrontend(error, componente = 'global', contextoAdicional = {}) {
+            try {
+                // Previne o log de erros não-significativos ou circulares
+                if (!error || typeof error.message === 'undefined') {
+                    console.warn("Tentativa de log de erro inválido ignorada.", error);
+                    return;
+                }
+
+                const user = auth.currentUser;
+                const token = user ? await user.getIdToken() : null;
+
+                const payload = {
+                    ambiente: 'frontend',
+                    funcao_ou_componente: componente,
+                    mensagem: error.message,
+                    stack_trace: error.stack || 'Stack trace não disponível',
+                    contexto: {
+                        url: window.location.href,
+                        userAgent: navigator.userAgent,
+                        ...contextoAdicional
+                    }
+                };
+
+                // Usa fetch sem `await` para não bloquear a UI (fire-and-forget)
+                fetch(API_URL_LOG_ERROR, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(token && { 'Authorization': `Bearer ${token}` })
+                    },
+                    body: JSON.stringify(payload),
+                    keepalive: true // Garante que a requisição seja enviada mesmo se a página for fechada
+                }).catch(e => console.error('Falha ao enviar log de erro para o backend:', e));
+
+            } catch (e) {
+                console.error('Falha CRÍTICA no próprio logger do frontend:', e);
+            }
+        }
+        
+        async function fetchAuthenticated(url, method = 'GET', body = null, _retry = false) {
+            let token = null;
+
+            // Prioridade 1: token já salvo no appState (definido quando onAuthChange dispara)
+            if (appState.hubToken) {
+                token = appState.hubToken;
+                console.log('🔑 LiciAI: Usando token do Hub (appState)');
+            }
+            // Prioridade 2: UniqueXAuth em memória
+            else if (window.UniqueXAuth && UniqueXAuth.isAuthenticated()) {
+                token = UniqueXAuth.getToken();
+                console.log('🔑 LiciAI: Usando token do Hub (UniqueXAuth)');
+            }
+            // Prioridade 3: token recebido via postMessage (outer scope)
+            else if (typeof hubToken !== 'undefined' && hubToken) {
+                token = hubToken;
+                console.log('🔑 LiciAI: Usando token do Hub (postMessage)');
+            }
+            // Prioridade 4: Firebase Auth tradicional
+            else {
+                const user = auth.currentUser;
+                if (!user) {
+                    const authError = new Error('Usuário não autenticado.');
+                    logErrorFrontend(authError, 'fetchAuthenticated');
+                    throw authError;
+                }
+                token = await user.getIdToken(true); // força refresh
+                console.log('🔑 LiciAI: Usando token do Firebase');
+            }
+
+            const headers = {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            };
+
+            const options = { method, headers, body: body ? JSON.stringify(body) : null };
+
+            const response = await fetch(url, options);
+
+            // Se 401/403 e ainda não tentamos retry, aguarda token e tenta uma vez
+            if ((response.status === 401 || response.status === 403) && !_retry) {
+                console.warn('🔄 LiciAI: Token rejeitado, aguardando refresh e retentando...');
+                await new Promise(r => setTimeout(r, 800));
+                // Força refresh do token Firebase se disponível
+                if (auth.currentUser) {
+                    appState.hubToken = await auth.currentUser.getIdToken(true);
+                }
+                return fetchAuthenticated(url, method, body, true);
+            }
+
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || `Erro HTTP: ${response.status}`);
+            }
+            return response.json();
+        }
+
+        async function getOportunidades(isLoadMore = false) {
+            try {
+                let offset = 0;
+                if (isLoadMore) {
+                    offset = appState.oportunidades.nextOffset;
+                } else {
+                    oportunidadesList.innerHTML = '<p class="text-gray-500 col-span-full">Carregando oportunidades...</p>';
+                    appState.oportunidades = { items: [], nextOffset: 0 };
+                }
+                
+                oportunidadesLoadMoreBtn.classList.add('hidden');
+
+                let url = API_URL_OPORTUNIDADES;
+                const params = new URLSearchParams();
+                params.append('limit', PAGE_SIZE);
+                params.append('offset', offset);
+                if (appState.currentOportunidadesSearchUf) params.append('uf', appState.currentOportunidadesSearchUf);
+                if (appState.currentOportunidadesSearchQuery) params.append('q', appState.currentOportunidadesSearchQuery);
+                
+                url += `?${params.toString()}`;
+
+                const data = await fetchAuthenticated(url);
+                
+                appState.oportunidades.items.push(...(data.items || [])); 
+                appState.oportunidades.nextOffset = data.nextOffset;
+
+                renderOportunidades();
+            } catch (error) {
+                console.error("Erro ao buscar oportunidades:", error);
+                logErrorFrontend(error, 'getOportunidades');
+                oportunidadesList.innerHTML = `<p class="text-red-600 col-span-full">Erro ao carregar oportunidades. Nossa equipe já foi notificada.</p>`;
+            }
+        }
+
+        async function getRankingOportunidades(isLoadMore = false) {
+            try {
+                let offset = 0;
+                if (isLoadMore) {
+                    offset = appState.ranking.nextOffset;
+                } else {
+                    rankingList.innerHTML = '<p class="text-gray-500 col-span-full">Carregando ranking...</p>';
+                    appState.ranking = { items: [], nextOffset: 0 };
+                }
+                
+                rankingLoadMoreBtn.classList.add('hidden');
+
+                let url = API_URL_RANKING;
+                const params = new URLSearchParams();
+                params.append('limit', PAGE_SIZE);
+                params.append('offset', offset);
+                if (appState.currentRankingSearchUf) params.append('uf', appState.currentRankingSearchUf);
+                if (appState.currentRankingSearchQuery) params.append('q', appState.currentRankingSearchQuery);
+
+                url += `?${params.toString()}`;
+
+                const data = await fetchAuthenticated(url);
+                appState.ranking.items.push(...(data.items || []));
+                appState.ranking.nextOffset = data.nextOffset;
+
+                renderRanking();
+            } catch (error) {
+                console.error("Erro ao buscar ranking:", error);
+                logErrorFrontend(error, 'getRankingOportunidades');
+                rankingList.innerHTML = `<p class="text-red-600 col-span-full">Erro ao carregar ranking. Nossa equipe já foi notificada.</p>`;
+            }
+        }
+
+        async function getClienteConfigs() {
+            try {
+                configMessage.textContent = '';
+                const data = await fetchAuthenticated(API_URL_CONFIGS);
+                appState.keywords = data.palavrasChave || [];
+                renderKeywords();
+            } catch (error) {
+                console.error("Erro ao buscar configurações:", error);
+                logErrorFrontend(error, 'getClienteConfigs');
+                configMessage.textContent = `Erro ao carregar configurações. Nossa equipe já foi notificada.`;
+                configMessage.classList.add('text-red-600');
+            }
+        }
+
+        async function addKeyword(keyword) {
+            try {
+                configMessage.textContent = 'Adicionando palavra-chave...';
+                configMessage.classList.remove('text-red-600', 'text-green-600');
+                await fetchAuthenticated(API_URL_ADD_KEYWORD, 'POST', { palavraChave: keyword });
+                newKeywordInput.value = '';
+                configMessage.textContent = 'Palavra-chave adicionada com sucesso!';
+                configMessage.classList.add('text-green-600');
+                await getClienteConfigs();
+                if (appState.activeTab === 'oportunidades') getOportunidades();
+                if (appState.activeTab === 'ranking') getRankingOportunidades();
+            } catch (error) {
+                console.error("Erro ao adicionar palavra-chave:", error);
+                configMessage.textContent = `Erro ao adicionar palavra-chave: ${error.message}`;
+                configMessage.classList.add('text-red-600');
+            }
+        }
+
+        async function removeKeyword(keyword) {
+            try {
+                configMessage.textContent = 'Removendo palavra-chave...';
+                configMessage.classList.remove('text-red-600', 'text-green-600');
+                await fetchAuthenticated(API_URL_REMOVE_KEYWORD, 'POST', { palavraChave: keyword });
+                configMessage.textContent = 'Palavra-chave removida com sucesso!';
+                configMessage.classList.add('text-green-600');
+                await getClienteConfigs();
+                if (appState.activeTab === 'oportunidades') getOportunidades();
+                if (appState.activeTab === 'ranking') getRankingOportunidades();
+            } catch (error) {
+                console.error("Erro ao remover palavra-chave:", error);
+                configMessage.textContent = `Erro ao remover palavra-chave: ${error.message}`;
+                configMessage.classList.add('text-red-600');
+            }
+        }
+
+        // --- 5. FUNÇÕES DE RENDERIZAÇÃO E UX ---
+        function formatCurrency(v) {
+            if (v === null || v === undefined) return 'Não informado';
+            if (typeof v === 'string') v = parseFloat(v.replace('.', '').replace(',', '.'));
+            if (isNaN(v)) return 'Não informado';
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return 'Não informado';
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) return 'Data inválida';
+
+            const now = new Date();
+            const dateOnly = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+            const nowOnly = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+            const diffDays = Math.ceil((dateOnly.getTime() - nowOnly.getTime()) / (1000 * 60 * 60 * 24));
+            let statusBadge = '';
+            if (diffDays > 1) {
+                statusBadge = `<span class="font-semibold text-green-700">${diffDays} dias</span>`;
+            } else if (diffDays === 1) {
+                statusBadge = `<span class="font-semibold text-yellow-600">Último dia!</span>`;
+            } else if (diffDays === 0) {
+                statusBadge = `<span class="font-semibold text-yellow-600">Hoje!</span>`;
+            } else if (diffDays < 0) {
+                statusBadge = `<span class="font-semibold text-red-600">Encerrado</span>`;
+            }
+            
+            return `${date.toLocaleDateString('pt-BR')} às ${date.toLocaleTimeString('pt-BR', {hour:'2-digit', minute:'2-digit'})} (${statusBadge})`;
+        }
+        
+        function createOpportunityCard(data, showScore = false) {
+            const scoreHtml = `<div class="flex flex-col items-end text-right"><div class="flex items-center text-xl font-bold" style="color: var(--color-secondary-green);"><ion-icon name="rocket-outline" class="mr-2"></ion-icon><span>${Math.round(data.score_oportunidade||0)} pts</span></div><span class="text-xs text-gray-500 mt-1">Relevância: ${Math.round(data.score_relevancia||0)}</span></div>`;
+            
+            const detailsButtonHtml = `<button onclick="openDetailsModal('${data.id_pncp}')" class="ml-4 flex-shrink-0 text-sm font-semibold text-[var(--color-primary-teal)] hover:opacity-80 border border-[var(--color-primary-teal)] px-4 py-2 rounded-lg transition-colors hover:bg-[var(--color-primary-teal)] hover:text-white">Detalhes</button>`;
+            
+            return `<div class="bg-white border border-gray-200 rounded-xl p-5 card-hover-effect">
+                <div class="flex justify-between items-start">
+                    <div class="flex-grow pr-4">
+                        <div class="flex items-center gap-2 mb-3">
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 border border-gray-200">${data.uf||'N/D'}</span>
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-800 border border-blue-200">${data.modalidade_nome||'Não informado'}</span>
+                        </div>
+                        <h2 class="text-lg font-semibold text-gray-800 line-clamp-1" title="${data.orgao_nome}">${data.orgao_nome||'Órgão não informado'}</h2>
+                        <p class="text-sm text-gray-600 mt-1 line-clamp-2">${data.objeto_compra||'Objeto não informado'}</p>
+                    </div>
+                    ${showScore ? scoreHtml : detailsButtonHtml}
+                </div>
+                <div class="mt-4 pt-4 border-t border-gray-200 flex flex-wrap justify-between items-center text-sm gap-4">
+                    <div class="text-gray-700"><span class="text-gray-500">Valor:</span> <strong class="ml-1">${formatCurrency(data.valor_total_estimado)}</strong></div>
+                    <div class="text-gray-700"><span class="text-gray-500">Encerramento:</span> <strong class="ml-1">${formatDate(data.data_encerramento_proposta)}</strong></div>
+                </div>
+            </div>`;
+        }
+
+        function updateUrlFromState() {
+            const params = new URLSearchParams(window.location.search);
+            params.set('tab', appState.activeTab);
+
+            let q = '';
+            let uf = '';
+
+            if (appState.activeTab === 'oportunidades') {
+                q = appState.currentOportunidadesSearchQuery;
+                uf = appState.currentOportunidadesSearchUf;
+            } else if (appState.activeTab === 'ranking') {
+                q = appState.currentRankingSearchQuery;
+                uf = appState.currentRankingSearchUf;
+            }
+            
+            q ? params.set('q', q) : params.delete('q');
+            uf ? params.set('uf', uf) : params.delete('uf');
+            
+            window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
+        }
+
+        function applyStateFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            const tab = params.get('tab');
+            const q = params.get('q');
+            const uf = params.get('uf');
+
+            if (tab === 'oportunidades' || tab === 'ranking' || tab === 'configs') {
+                appState.activeTab = tab;
+            }
+
+            if (q) {
+                oportunidadesSearchInput.value = q;
+                rankingSearchInput.value = q;
+                appState.currentOportunidadesSearchQuery = q;
+                appState.currentRankingSearchQuery = q;
+            }
+            if (uf) {
+                oportunidadesUfSelect.value = uf;
+                rankingUfSelect.value = uf;
+                appState.currentOportunidadesSearchUf = uf;
+                appState.currentRankingSearchUf = uf;
+            }
+        }
+
+        function renderOportunidades() {
+            if (appState.oportunidades.items.length === 0) {
+                oportunidadesList.innerHTML = '<p class="text-gray-500 col-span-full">Nenhuma oportunidade encontrada. Tente ajustar seus filtros ou palavras-chave.</p>';
+                oportunidadesLoadMoreBtn.classList.add('hidden');
+                return;
+            }
+            oportunidadesList.innerHTML = appState.oportunidades.items.map(op => createOpportunityCard(op, false)).join('');
+
+            if (appState.oportunidades.nextOffset !== null) {
+                oportunidadesLoadMoreBtn.classList.remove('hidden');
+            } else {
+                oportunidadesLoadMoreBtn.classList.add('hidden');
+            }
+        }
+
+        function renderRanking() {
+            if (appState.ranking.items.length === 0) {
+                rankingList.innerHTML = '<p class="text-gray-500 col-span-full">Nenhuma oportunidade no ranking. Tente ajustar seus filtros ou palavras-chave.</p>';
+                rankingLoadMoreBtn.classList.add('hidden');
+                return;
+            }
+            rankingList.innerHTML = appState.ranking.items.map(op => createOpportunityCard(op, true)).join('');
+
+            if (appState.ranking.nextOffset !== null) {
+                rankingLoadMoreBtn.classList.remove('hidden');
+            } else {
+                rankingLoadMoreBtn.classList.add('hidden');
+            }
+        }
+
+        function renderKeywords() {
+            keywordsContainer.innerHTML = '';
+            if (appState.keywords.length === 0) {
+                keywordsContainer.innerHTML = '<p class="text-gray-500 text-sm">Nenhuma palavra-chave adicionada.</p>';
+                return;
+            }
+            appState.keywords.forEach(keywordData => {
+                const span = document.createElement('span');
+                span.className = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-teal-100 text-teal-800';
+                span.innerHTML = `${keywordData.palavra_chave} (peso: ${keywordData.peso}) <button data-keyword="${keywordData.palavra_chave}" class="ml-2 -mr-0.5 h-4 w-4 text-teal-600 hover:text-teal-900 remove-keyword-btn"><ion-icon name="close-circle"></ion-icon></button>`;
+                keywordsContainer.appendChild(span);
+            });
+        }
+
+        async function openDetailsModal(idPncp) {
+            modalBody.innerHTML = '<p class="text-center text-gray-500">Carregando detalhes...</p>';
+            detailsModal.classList.add('visible');
+            try {
+                const url = `${API_URL_DETALHES}?id=${encodeURIComponent(idPncp)}`;
+                const data = await fetchAuthenticated(url);
+                
+                modalBody.innerHTML = `
+                    <h2 class="text-2xl font-bold text-gray-800 mb-2">${data.orgaoEntidade?.razaoSocial || 'Órgão não informado'}</h2>
+                    <p class="text-sm text-gray-500 mb-4">ID: ${data.numeroControlePNCP}</p>
+                    <div class="space-y-4 text-gray-700">
+                        <div>
+                            <h3 class="font-semibold text-gray-900">Objeto da Compra</h3>
+                            <p>${data.objetoCompra || 'Não informado'}</p>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-gray-900">Valor Estimado</h3>
+                            <p>${formatCurrency(data.valorTotalEstimado)}</p>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-gray-900">Data de Encerramento</h3>
+                            <p>${formatDate(data.dataEncerramentoProposta)}</p>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-gray-900">Modalidade</h3>
+                            <p>${data.modalidade?.nome || 'Não informado'}</p> 
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-gray-900">UF</h3>
+                            <p>${data.unidadeOrgao?.ufSigla || 'Não informado'}</p>
+                        </div>
+                        <a href="${generatePncpUrl(data.numeroControlePNCP)}" target="_blank" rel="noopener noreferrer" class="inline-block mt-4 text-white bg-teal-600 hover:bg-teal-700 font-medium rounded-lg text-sm px-5 py-2.5">
+                            Ver no Portal PNCP
+                        </a>
+                    </div>
+                `;
+            } catch (error) {
+                console.error("Erro ao buscar detalhes:", error);
+                logErrorFrontend(error, 'openDetailsModal', { idPncp: idPncp });
+                modalBody.innerHTML = `<p class="text-red-600">Não foi possível carregar os detalhes. Nossa equipe já foi notificada.</p>`;
+            }
+        }
+
+        function closeDetailsModal() {
+            detailsModal.classList.remove('visible');
+        }
+
+        function generatePncpUrl(idPncp) {
+            if (!idPncp) {
+                return 'https://pncp.gov.br/app/contratacoes';
+            }
+            const regex = /^(\d{14})-\d+-(\d+)\/(\d{4})$/;
+            const parts = idPncp.match(regex);
+
+            if (parts && parts.length === 4) {
+                const cnpj = parts[1];
+                const sequencial = parts[2];
+                const ano = parts[3];
+                return `https://pncp.gov.br/app/editais/${cnpj}/${ano}/${sequencial}`;
+            } else {
+                console.warn('Formato de ID PNCP inesperado ao gerar URL:', { idPncp });
+                return `https://pncp.gov.br/app/contratacoes?q=${encodeURIComponent(idPncp)}`;
+            }
+        }
+
+        // --- 6. FUNÇÕES DE CONTROLE DE VIEW ---
+        function updateView() {
+            if (appState.isLoggedIn) {
+                loginSection.classList.add('hidden');
+                appSection.classList.remove('hidden');
+                userEmailDisplay.textContent = appState.userEmail;
+
+                document.querySelectorAll('.tab-button').forEach(btn => {
+                    btn.classList.remove('bg-gray-200', 'text-primary-teal');
+                    btn.classList.add('text-gray-700');
+                });
+                document.querySelectorAll('.tab-content').forEach(content => content.classList.add('hidden'));
+
+                let currentTabButton, currentTabContent;
+                if (appState.activeTab === 'oportunidades') {
+                    currentTabButton = oportunidadesTab;
+                    currentTabContent = oportunidadesSection;
+                } else if (appState.activeTab === 'ranking') {
+                    currentTabButton = rankingTab;
+                    currentTabContent = rankingSection;
+                } else if (appState.activeTab === 'configs') {
+                    currentTabButton = configsTab;
+                    currentTabContent = configsSection;
+                }
+
+                if (currentTabButton) {
+                    currentTabButton.classList.add('bg-gray-200', 'text-primary-teal');
+                    currentTabButton.classList.remove('text-gray-700');
+                    currentTabContent.classList.remove('hidden');
+                }
+                
+                fetchAndRenderData();
+
+            } else {
+                loginSection.classList.remove('hidden');
+                appSection.classList.add('hidden');
+                errorMessageDisplay.textContent = '';
+            }
+        }
+
+        async function fetchAndRenderData() {
+            if (!appState.isLoggedIn) return;
+
+            if (appState.activeTab === 'oportunidades') {
+                await getOportunidades();
+            } else if (appState.activeTab === 'ranking') {
+                await getRankingOportunidades();
+            } else if (appState.activeTab === 'configs') {
+                await getClienteConfigs();
+            }
+        }
+
+        // --- 7. EVENT LISTENERS ---
+        function setupEventListeners() {
+            loginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                signIn(emailInput.value, passwordInput.value);
+            });
+
+            googleLoginBtn.addEventListener('click', signInWithGoogle);
+            logoutBtn.addEventListener('click', signOutUser);
+
+            oportunidadesTab.addEventListener('click', () => {
+                appState.activeTab = 'oportunidades';
+                updateUrlFromState();
+                updateView();
+            });
+            rankingTab.addEventListener('click', () => {
+                appState.activeTab = 'ranking';
+                updateUrlFromState();
+                updateView();
+            });
+            configsTab.addEventListener('click', () => {
+                appState.activeTab = 'configs';
+                updateUrlFromState();
+                updateView();
+            });
+
+            addKeywordBtn.addEventListener('click', () => {
+                const newKeyword = newKeywordInput.value.trim();
+                if (newKeyword) {
+                    addKeyword(newKeyword);
+                }
+            });
+
+            keywordsContainer.addEventListener('click', (e) => {
+                if (e.target.classList.contains('remove-keyword-btn') || e.target.closest('.remove-keyword-btn')) {
+                    const keywordToRemove = e.target.closest('.remove-keyword-btn').dataset.keyword;
+                    if (keywordToRemove) {
+                        removeKeyword(keywordToRemove);
+                    }
+                }
+            });
+
+            oportunidadesLoadMoreBtn.addEventListener('click', () => getOportunidades(true));
+            rankingLoadMoreBtn.addEventListener('click', () => getRankingOportunidades(true));
+
+            oportunidadesSearchBtn.addEventListener('click', () => {
+                appState.currentOportunidadesSearchQuery = oportunidadesSearchInput.value.trim();
+                appState.currentOportunidadesSearchUf = oportunidadesUfSelect.value;
+                updateUrlFromState();
+                getOportunidades(false);
+            });
+            oportunidadesSearchInput.addEventListener('keyup', (e) => {
+                if (e.key === 'Enter') {
+                    oportunidadesSearchBtn.click();
+                }
+            });
+            oportunidadesUfSelect.addEventListener('change', () => {
+                oportunidadesSearchBtn.click();
+            });
+
+            rankingSearchBtn.addEventListener('click', () => {
+                appState.currentRankingSearchQuery = rankingSearchInput.value.trim();
+                appState.currentRankingSearchUf = rankingUfSelect.value;
+                updateUrlFromState();
+                getRankingOportunidades(false);
+            });
+            rankingSearchInput.addEventListener('keyup', (e) => {
+                if (e.key === 'Enter') {
+                    rankingSearchBtn.click();
+                }
+            });
+            rankingUfSelect.addEventListener('change', () => {
+                rankingSearchBtn.click();
+            });
+
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && detailsModal.classList.contains('visible')) {
+                    closeDetailsModal();
+                }
+            });
+
+            detailsModal.addEventListener('click', (e) => {
+                if (e.target === detailsModal) {
+                    closeDetailsModal();
+                }
+            });
+        }
+
+        function populateUfDropdowns() {
+            const createOption = (value, text) => {
+                const option = document.createElement('option');
+                option.value = value;
+                option.textContent = text;
+                return option;
+            };
+
+            UFS_BRASIL.forEach(uf => {
+                oportunidadesUfSelect.appendChild(createOption(uf, uf));
+                rankingUfSelect.appendChild(createOption(uf, uf));
+            });
+        }
+
+        // --- 8. INICIALIZAÇÃO DA APLICAÇÃO ---
+        
+        // Verificar autenticação do Hub primeiro
+        function checkHubAuth() {
+            if (window.UniqueXAuth && UniqueXAuth.isAuthenticated()) {
+                const user = UniqueXAuth.getUser();
+                console.log('✅ LiciAI: Autenticado via Hub -', user.email);
+                
+                appState.isLoggedIn = true;
+                appState.userEmail = user.email;
+                appState.uid = user.uid;
+                appState.hubToken = UniqueXAuth.getToken();
+                
+                updateView();
+                return true;
+            }
+            return false;
+        }
+        
+        // Escutar mudanças de autenticação do Hub
+        if (window.UniqueXAuth) {
+            UniqueXAuth.onAuthChange((user) => {
+                if (user) {
+                    console.log('✅ LiciAI: Auth atualizada do Hub -', user.email);
+                    appState.isLoggedIn = true;
+                    appState.userEmail = user.email;
+                    appState.uid = user.uid;
+                    appState.hubToken = UniqueXAuth.getToken();
+                    updateView();
+                } else {
+                    console.log('⚠️  LiciAI: Auth removida do Hub');
+                    appState.isLoggedIn = false;
+                    appState.userEmail = null;
+                    appState.uid = null;
+                    appState.hubToken = null;
+                    updateView();
+                }
+            });
+        }
+        
+        // Fallback: autenticação Firebase tradicional (se não tiver Hub)
+        auth.onAuthStateChanged(user => {
+            // Só usar Firebase auth se não tiver auth do Hub
+            if (!checkHubAuth()) {
+                if (user) {
+                    appState.isLoggedIn = true;
+                    appState.userEmail = user.email;
+                    appState.uid = user.uid;
+                } else {
+                    appState.isLoggedIn = false;
+                    appState.userEmail = null;
+                    appState.uid = null;
+                }
+                updateView();
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            setupEventListeners();
+            populateUfDropdowns();
+            
+            // Tentar autenticar com hub primeiro
+            setTimeout(() => {
+                if (!checkHubAuth()) {
+                    console.log('⚠️  LiciAI: Aguardando auth do Hub ou login manual...');
+                }
+            }, 500);
+            
+            applyStateFromUrl();
+        });
+
+    </script>
+
+    <!-- ======================================== -->
+    <!-- AUTENTICAÇÃO CENTRALIZADA VIA HUBAMALIA -->
+    <!-- ======================================== -->
+    <script>
+    let hubUser = null;
+    let hubToken = null;
+
+    // Escutar mensagens do Hub
+    window.addEventListener('message', async (event) => {
+      // Aceitar apenas de origens autorizadas
+      const allowedOrigins = ['uniquexhub.web.app', 'hubamalia.web.app', 'localhost', '127.0.0.1'];
+      const isAllowed = allowedOrigins.some(o => event.origin.includes(o));
+      if (!isAllowed) {
+        console.warn('LiciAI: Mensagem de origem não autorizada:', event.origin);
+        return;
+      }
+
+      const data = event.data;
+      
+      if (data.type === 'HUB_AUTH') {
+        console.log('🔐 LiciAI: Token recebido do HubAmalia');
+        
+        hubToken = data.token;
+        hubUser = data.user;
+        
+        console.log('✅ LiciAI: Usuário autenticado:', hubUser.email);
+        
+        // Disparar evento customizado
+        window.dispatchEvent(new CustomEvent('hub-auth-ready', { 
+          detail: { user: hubUser, token: hubToken }
+        }));
+        
+        console.log('🎯 LiciAI: Evento hub-auth-ready disparado');
+      }
+    });
+
+    // Função para fazer requests autenticados
+    async function fetchWithHubAuth(url, options = {}) {
+      if (!hubToken) {
+        throw new Error('Usuário não autenticado via Hub');
+      }
+      
+      const headers = {
+        ...options.headers,
+        'Authorization': `Bearer ${hubToken}`
+      };
+      
+      return fetch(url, { ...options, headers });
+    }
+
+    // Notificar hub que está pronto
+    if (window.parent !== window) {
+      window.parent.postMessage({ type: 'APP_READY' }, '*');
+      console.log('🎯 LiciAI: Notificou hub que está pronto');
+    }
+
+    console.log('🚀 LiciAI: Sistema de autenticação centralizada inicializado');
+    </script>
+
+</body>
+</html>

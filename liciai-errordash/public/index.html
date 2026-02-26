@@ -1,0 +1,1485 @@
+<!DOCTYPE html>
+<html lang="pt-br" class="h-full bg-gray-950 text-gray-200" style="scroll-behavior: smooth;">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LiciAI - Dashcode</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@700&family=Inter:wght@400;600&family=Fira+Code:wght@400;500&display=swap" rel="stylesheet">
+    <!-- PDF.js para leitura de PDFs no navegador -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.min.js"></script>
+    <script>
+      // Configuração obrigatória para o pdf.js
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.11.338/pdf.worker.min.js';
+    </script>
+    <style>
+        :root {
+            --brand-cyan: #22d3ee;
+            --brand-indigo: #818cf8;
+            --bg-darkest: #030712; /* Quase preto */
+            --bg-dark: #111827;    /* Fundo da Sidebar e Cards */
+            --bg-med: #1f2937;      /* Fundo do Modal */
+            --bg-light: #374151;    /* Bordas e Hovers */
+            --border-color: #374151;
+            --text-light: #d1d5db;
+            --text-dark: #9ca3af;
+        }
+        /* [NOVO] Tema de Cores Refinado */
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: var(--bg-darkest); /* Fundo principal mais escuro */
+        }
+        .font-brand { font-family: 'Quicksand', sans-serif; }
+        .font-code { font-family: 'Fira Code', monospace; }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-dark); }
+        ::-webkit-scrollbar-thumb { background-color: var(--bg-light); border-radius: 20px; border: 2px solid var(--bg-dark); }
+        ::-webkit-scrollbar-thumb:hover { background-color: #4b5563; }
+
+        /* [NOVO] Estilo de Card Reutilizável */
+        .card {
+            background-color: var(--bg-dark);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            transition: all 0.2s ease-in-out;
+        }
+        .card:hover {
+            border-color: var(--brand-cyan);
+            box-shadow: 0 4px 10px -4px rgba(34, 211, 238, 0.1);
+        }
+
+        /* [NOVO] Seção de Conteúdo Centralizada */
+        .content-section {
+            transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+            width: 100%;
+            max-width: 7xl; /* 1280px */
+            margin-left: auto;
+            margin-right: auto;
+        }
+        .content-section.hidden { 
+            opacity: 0; 
+            transform: translateY(10px); 
+            pointer-events: none; 
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            padding: 1.5rem; /* Garante que não colapse */
+        }
+        
+        /* [EVOLUÍDO] Sidebar */
+        .sidebar-link { 
+            transition: all 0.2s ease-in-out; 
+            color: var(--text-dark);
+        }
+        .sidebar-link:hover { 
+            background-color: var(--bg-light); 
+            color: white; 
+            transform: translateX(4px); 
+        }
+        .sidebar-link.active { 
+            background-color: var(--brand-indigo);
+            color: white; 
+            font-weight: 600; 
+            box-shadow: 0 4px 15px -5px rgba(129, 140, 248, 0.4);
+        }
+
+        /* [EVOLUÍDO] Botões */
+        .btn { 
+            transition: all .2s ease-in-out; 
+            border-radius: 0.5rem;
+            font-weight: 600;
+        }
+        .btn:focus-visible {
+            outline: 2px solid var(--brand-cyan);
+            outline-offset: 2px;
+        }
+        .btn-primary { 
+            background-image: linear-gradient(to right, var(--brand-indigo), var(--brand-cyan)); 
+            color: white; 
+        }
+        .btn-primary:hover { 
+            transform: translateY(-2px); 
+            box-shadow: 0 6px 20px -6px rgba(129, 140, 248, 0.5); 
+        }
+        .btn-secondary { 
+            background-color: var(--bg-light); 
+            border: 1px solid var(--border-color); 
+            color: var(--text-light);
+        }
+        .btn-secondary:hover { 
+            background-color: var(--border-color); 
+            color: white;
+        }
+        /* [NOVO] Estilo para botão de refresh */
+        .btn-refresh svg.animate-spin {
+            display: inline-block;
+        }
+        .btn-refresh:not(:disabled) svg.animate-spin {
+            display: none;
+        }
+        .btn-refresh:disabled svg:not(.animate-spin) {
+            display: none;
+        }
+        
+        /* Modal (Estava bom, mantido) */
+        .modal-backdrop { position: fixed; inset: 0; background-color: rgba(17, 24, 39, 0.8); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 100; opacity: 0; transition: opacity 0.3s ease; pointer-events: none; }
+        .modal-backdrop.visible { opacity: 1; pointer-events: auto; }
+        .modal-content { background: var(--bg-med); border: 1px solid var(--border-color); box-shadow: 0 10px 25px -5px rgba(0,0,0,0.5); border-radius: 0.75rem; padding: 1.5rem; width: 90%; max-width: 60rem; max-height: 90vh; overflow-y: auto; transform: scale(0.95); transition: transform 0.3s ease; }
+        .modal-backdrop.visible .modal-content { transform: scale(1); }
+        
+        /* Prose (Estava bom, mantido) */
+        .prose { color: var(--text-light); }
+        .prose h1, .prose h2, .prose h3 { color: var(--brand-cyan); font-family: 'Quicksand', sans-serif; border-bottom: 1px solid var(--border-color); padding-bottom: 0.5rem;}
+        .prose strong { color: var(--brand-indigo); }
+        .prose code { color: #f9a8d4; background-color: var(--bg-dark); padding: 0.2rem 0.4rem; border-radius: 0.25rem; }
+        .prose pre { white-space: pre-wrap; word-wrap: break-word; background-color: var(--bg-dark); border: 1px solid var(--border-color); }
+        
+        /* Toast Notifications (Estava bom, mantido) */
+        #toast-container { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 200; display: flex; flex-direction: column; gap: 0.75rem; }
+        .toast { display: flex; align-items: center; padding: 0.75rem 1rem; border-radius: 0.5rem; color: white; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1); transform: translateX(120%); animation: slideIn 0.5s forwards, slideOut 0.5s 4.5s forwards; }
+        .toast.success { background-color: #059669; }
+        .toast.error { background-color: #dc2626; }
+        @keyframes slideIn { from { transform: translateX(120%); } to { transform: translateX(0); } }
+        @keyframes slideOut { from { transform: translateX(0); } to { transform: translateX(120%); } }
+
+        /* Menu de Ações (Estava bom, mantido) */
+        .action-menu {
+            background-color: var(--bg-med);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.2), 0 4px 6px -2px rgba(0, 0, 0, 0.15);
+            border-radius: 0.5rem;
+            opacity: 0;
+            transform: scale(0.95) translateY(-10px);
+            transition: opacity 150ms ease-out, transform 150ms ease-out;
+            pointer-events: none;
+            transform-origin: top right;
+        }
+        .action-menu.visible {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+            pointer-events: auto;
+        }
+        .action-menu-item {
+            display: flex;
+            align-items: center;
+            padding: 0.5rem 0.75rem;
+            transition: background-color 0.15s ease-in-out, color 0.15s ease-in-out;
+            cursor: pointer;
+        }
+        .action-menu-item svg {
+            margin-right: 0.75rem;
+            height: 1rem;
+            width: 1rem;
+            color: var(--text-dark);
+            transition: color 0.15s ease-in-out;
+        }
+        .action-menu-item:hover {
+            background-color: var(--brand-indigo);
+            color: white;
+        }
+        .action-menu-item:hover svg {
+            color: white;
+        }
+        .delete-btn:hover {
+            background-color: #dc2626 !important;
+            color: white !important;
+        }
+        .delete-btn:hover svg {
+            color: white !important;
+        }
+        
+        /* [NOVO] Estilos do Arquiteto de IA */
+        .chat-bubble {
+            padding: 0.75rem 1rem;
+            border-radius: 0.75rem;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+        .chat-bubble.user {
+            background-color: var(--brand-indigo);
+            color: white;
+            border-bottom-right-radius: 0.25rem;
+            align-self: flex-end;
+        }
+        .chat-bubble.ia {
+            background-color: var(--bg-dark);
+            color: var(--text-light);
+            border: 1px solid var(--border-color);
+            border-bottom-left-radius: 0.25rem;
+            align-self: flex-start;
+        }
+        .chat-bubble.ia pre {
+            background-color: var(--bg-darkest) !important;
+            border: 1px solid var(--border-color);
+            margin-top: 0.75rem;
+        }
+        .suggestion-chip {
+            background-color: var(--bg-light);
+            color: var(--text-light);
+            padding: 0.25rem 0.75rem;
+            font-size: 0.75rem; /* 12px */
+            border-radius: 9999px;
+            transition: all 0.2s ease;
+            border: 1px solid var(--border-color);
+        }
+        .suggestion-chip:hover {
+            background-color: var(--brand-indigo);
+            color: white;
+            border-color: var(--brand-indigo);
+        }
+    </style>
+</head>
+<body class="h-full antialiased">
+
+<!-- Toast Container -->
+<div id="toast-container"></div>
+
+<div id="loading-screen" class="min-h-screen flex flex-col items-center justify-center bg-gray-950">
+    <svg class="animate-spin h-10 w-10 text-cyan-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+    <p class="text-xl font-brand animate-pulse mt-4 text-gray-300">Autenticando...</p>
+</div>
+<div id="denied-screen" class="hidden min-h-screen flex items-center justify-center flex-col text-center p-4 bg-gray-950">
+    <h1 class="text-4xl font-brand text-red-500">Acesso Negado</h1>
+    <p class="mt-4 max-w-md text-gray-400">Você não tem permissão para acessar esta página.</p>
+    <button onclick="logout()" class="mt-8 bg-red-600 hover:bg-red-500 text-white font-semibold px-6 py-2 rounded-md transition-colors">Sair</button>
+</div>
+
+<!-- [EVOLUÍDO] Layout Principal -->
+<div id="dashcode-screen" class="hidden h-screen flex">
+    <!-- Sidebar -->
+    <nav class="w-60 bg-gray-900 border-r border-gray-800 flex flex-col flex-shrink-0">
+        <div class="p-4 border-b border-gray-800 text-center h-20 flex flex-col justify-center">
+            <h1 class="text-2xl font-brand text-cyan-400">LiciAI Dashcode</h1>
+            <p id="user-info" class="text-sm text-gray-500 mt-1 truncate">Admin: carregando...</p>
+        </div>
+        <ul class="flex-grow p-2 space-y-1">
+            <li><a href="#" data-section="overview" class="sidebar-link flex items-center px-3 py-2 rounded-md text-sm font-medium">
+                <svg class="h-5 w-5 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>
+                Visão Geral
+            </a></li>
+            <li><a href="#" data-section="sprints" class="sidebar-link flex items-center px-3 py-2 rounded-md text-sm font-medium">
+                <svg class="h-5 w-5 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7.014A8.003 8.003 0 0112 3c1.398 0 2.743.57 3.714 1.518C18.5 6.5 19 9 19 11c1 1 2.657 1.343 2.657 1.343a8 8 0 01-4.001 6.314z" /></svg>
+                Sprints
+            </a></li>
+            
+            <li class="pt-4"><div class="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Ferramentas</div></li>
+            <li><a href="#" data-section="logs" class="sidebar-link flex items-center px-3 py-2 rounded-md text-sm font-medium">
+                <svg class="h-5 w-5 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                Logs de Erro
+            </a></li>
+            <li><a href="#" data-section="schema" class="sidebar-link flex items-center px-3 py-2 rounded-md text-sm font-medium">
+                <svg class="h-5 w-5 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4M4 7c0-2.21 3.582-4 8-4s8 1.79 8 4m0 5c0 2.21-3.582 4-8 4s-8-1.79-8-4" /></svg>
+                Schema BigQuery
+            </a></li>
+            <li><a href="#" data-section="structure" class="sidebar-link flex items-center px-3 py-2 rounded-md text-sm font-medium">
+                 <svg class="h-5 w-5 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" /></svg>
+                Estrutura Projeto
+            </a></li>
+            
+            <li class="pt-4"><div class="px-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Inteligência</div></li>
+            <li><a href="#" data-section="assistant" class="sidebar-link flex items-center px-3 py-2 rounded-md text-sm font-medium">
+                <svg class="h-5 w-5 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+                Arquiteto de IA
+            </a></li>
+            <li><a href="#" data-section="knowledge" class="sidebar-link flex items-center px-3 py-2 rounded-md text-sm font-medium">
+                <svg class="h-5 w-5 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m.75 12 3 3m0 0 3-3m-3 3v-6m-1.5-9H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" /></svg>
+                Base de Conhecimento
+            </a></li>
+            <li><a href="#" data-section="dna" class="sidebar-link flex items-center px-3 py-2 rounded-md text-sm font-medium">
+                <svg class="h-5 w-5 mr-3" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 0 1-3 0m3 0a1.5 1.5 0 0 0-3 0m-9.75 0h9.75" /></svg>
+                DNA do Projeto
+            </a></li>
+        </ul>
+        <div class="p-4 mt-auto border-t border-gray-800">
+            <button onclick="logout()" class="w-full bg-gray-700/50 hover:bg-red-600 text-red-300 hover:text-white text-sm font-semibold px-4 py-2 rounded-md transition-colors flex items-center justify-center">
+                <svg class="h-5 w-5 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+                Sair
+            </button>
+        </div>
+    </nav>
+
+    <!-- [EVOLUÍDO] Área de Conteúdo Principal -->
+    <main class="flex-1 flex flex-col overflow-hidden p-4 sm:p-6 lg:p-8">
+        
+        <section id="section-overview" class="content-section prose max-w-none">
+            <div class="flex justify-between items-center mb-4">
+                <h1 class="text-4xl text-cyan-400 border-none p-0">Visão Geral do Projeto</h1>
+                <button id="save-overview-btn" class="btn btn-primary text-sm px-4 py-2 rounded" style="display: none;">Salvar Alterações</button>
+            </div>
+            <div id="overview-content" class="editable-content mt-4 card p-6" contenteditable="true">
+                <h2>1. VISÃO ESTRATÉGICA E PROPOSTA DE VALOR</h2>
+                <p><strong>Propósito Principal:</strong> Transformar dados brutos do PNCP (Portal Nacional de Contratações Públicas) e outras fontes em inteligência preditiva e acionável. O LiciAI posiciona-se como uma Plataforma de Inteligência de Negócios Públicos, não apenas um buscador de editais.</p>
+                <p><strong>Diferencial Competitivo (Moat):</strong> O LiciAI é um Analista de Conformidade, Mercado e Risco com IA. Resolve as dores centrais do fornecedor: (1) o tempo gasto lendo editais (Análise IA), (2) a falta de prioridade (Score de Oportunidade), e (3) a incerteza de mercado (Radar de Nichos e Mapa de Preços).</p>
+                <h2>2. ARQUITETURA TÉCNICA E GOVERNANÇA (GCP)</h2>
+                <p>A arquitetura é 100% serverless, priorizando escalabilidade, segurança e otimização de custos (pay-as-you-go).</p>
+                <p><strong>Fluxo de Dados:</strong> Cadastro (Firebase Auth) -> Ingestão (Scheduler -> Cloud Function) -> Armazenamento Bruto (BigQuery stg) -> Transformação (BQ Scheduled Queries -> core) -> Análise/IA (Vertex AI) -> Consumo (Frontend -> API Segura).</p>
+            </div>
+        </section>
+        
+        <section id="section-sprints" class="content-section prose max-w-none hidden card p-6">
+            <h1 class="text-4xl text-cyan-400">Monitoramento de Sprints</h1>
+            <h3>Fases Estratégicas</h3>
+            <ul>
+                <li><strong>FASE 1: Automação e Robustez (Motor Autônomo):</strong> Garantir que o pipeline de dados funcione 24/7 de forma segura e confiável.</li>
+                <li><strong>FASE 2: Inteligência Acionável (Dashboard Indispensável):</strong> Transformar o frontend em uma ferramenta de decisão com filtros, score e alertas.</li>
+                <li><strong>FASE 3: IA Aplicada aos Editais (O Grande Salto Competitivo):</strong> Resolver a dor de analisar editais, comparando-os com o perfil do usuário.</li>
+                <li><strong>FASE 4: Ecossistema e Monetização (Modo Empresa):</strong> Expandir para novos módulos (propostas, concorrência) e modelos de receita.</li>
+            </ul>
+        </section>
+        
+        <!-- [EVOLUÍDO] Seção de Logs de Erro (Layout de Card) -->
+        <section id="section-logs" class="content-section hidden flex flex-col h-full">
+            <!-- Cabeçalho com botão de Atualizar -->
+            <div class="flex-shrink-0 flex flex-wrap gap-4 justify-between items-center mb-4">
+                <h2 class="text-3xl font-brand text-gray-200">Log de Erros</h2>
+                <div class="flex gap-2">
+                     <button id="refresh-errors-btn" class="btn btn-secondary text-xs px-3 py-1 rounded inline-flex items-center gap-1 btn-refresh">
+                          <svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m-15.357-2A8.001 8.001 0 0019.418 15m0 0H15" /></svg>
+                          <span class="btn-text">Atualizar</span>
+                     </button>
+                    <button id="generate-error-btn" class="btn btn-secondary text-xs px-3 py-1 rounded">Gerar Erro de Teste</button>
+                </div>
+            </div>
+            
+            <!-- Filtros -->
+            <div class="flex-shrink-0 card p-4 mb-4">
+                <div class="flex flex-col md:flex-row md:justify-between md:items-center gap-4">
+                    <div class="flex space-x-1 border border-gray-700 rounded-lg p-1 self-start">
+                        <button data-status="NOVO" class="status-filter px-3 py-1 text-sm font-medium rounded-md transition-colors duration-150 active">Novos</button>
+                        <button data-status="EM_ANALISE" class="status-filter px-3 py-1 text-sm font-medium rounded-md transition-colors duration-150">Em Análise</button>
+                        <button data-status="RESOLVIDO" class="status-filter px-3 py-1 text-sm font-medium rounded-md transition-colors duration-150">Resolvidos</button>
+                        <button data-status="TODOS" class="status-filter px-3 py-1 text-sm font-medium rounded-md transition-colors duration-150">Todos</button>
+                    </div>
+                    <input type="text" id="error-filter" placeholder="Filtrar por mensagem, função..." class="w-full md:w-1/2 bg-gray-800 border border-gray-700 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-cyan-500 focus:outline-none transition-colors">
+                </div>
+            </div>
+
+            <!-- Ações em Massa -->
+            <div class="flex-shrink-0 flex flex-wrap justify-between items-center gap-4 mb-4">
+                <div class="flex items-center gap-3">
+                    <input type="checkbox" id="select-all-errors" class="bg-gray-700 border-gray-600 rounded focus:ring-cyan-500">
+                    <label for="select-all-errors" class="text-sm text-gray-400">Selecionar Todos Visíveis</label>
+                </div>
+                <div id="bulk-actions-container" class="hidden flex items-center gap-2">
+                    <select id="bulk-action-select" class="bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-xs focus:ring-cyan-500">
+                        <option value="">Ação em massa...</option>
+                        <option value="EM_ANALISE">Mover para Em Análise</option>
+                        <option value="RESOLVIDO">Marcar como Resolvido</option>
+                        <option value="DELETE">Excluir</option>
+                    </select>
+                    <button id="bulk-action-apply" class="btn btn-primary text-xs px-3 py-2 rounded">Aplicar</button>
+                </div>
+            </div>
+
+            <!-- Lista de Cards de Erro -->
+            <div id="error-list-container" class="flex-grow space-y-3 overflow-y-auto pr-2">
+                <!-- Cards de erro serão injetados aqui pelo JS -->
+            </div>
+            <div id="error-list-placeholder" class="py-4 text-center"></div>
+            
+            <!-- Carregar Mais -->
+            <div class="flex-shrink-0 mt-4">
+                <button id="load-more-errors" class="btn btn-secondary w-full" style="display: none;">Carregar Mais</button>
+            </div>
+        </section>
+
+        <section id="section-schema" class="content-section hidden">
+            <h2 class="text-3xl font-brand text-gray-200 mb-4">Schema do BigQuery</h2>
+            <div class="card p-6">
+                <div id="schema-view" class="font-code text-sm space-y-4">
+                     <p class="text-gray-500 animate-pulse">Carregando schema...</p>
+                </div>
+            </div>
+        </section>
+
+        <section id="section-structure" class="content-section hidden">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-3xl font-brand text-gray-200">Estrutura do Projeto</h2>
+                <button id="analyze-structure-btn" class="btn btn-secondary text-xs px-3 py-1 rounded">Analisar com IA</button>
+            </div>
+            <div id="structure-analysis-container" class="hidden mb-6 card p-4">
+                <h3 class="font-brand text-lg text-cyan-400">Análise da IA</h3>
+                <div id="structure-analysis-result" class="mt-2 text-sm text-gray-300 prose prose-sm max-w-none"></div>
+            </div>
+            <div class="card p-6">
+                <div id="structure-view" class="font-code text-sm space-y-4">
+                    <p class="text-gray-500 animate-pulse">Carregando estrutura...</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- [EVOLUÍDO] Seção do Arquiteto de IA (Layout de Chat) -->
+        <section id="section-assistant" class="content-section hidden flex-1 flex flex-col h-full overflow-hidden card p-0">
+            <!-- Cabeçalho -->
+            <div class="flex-shrink-0 p-4 sm:p-6 border-b border-gray-800">
+                <h2 class="text-3xl font-brand text-gray-200 mb-2">Arquiteto de IA</h2>
+                <p class="text-sm text-gray-400">Descreva a funcionalidade ou refatoração. A IA usará o contexto do código, schema, erros e base de conhecimento para gerar o plano e o código.</p>
+            </div>
+            
+            <!-- Área do Chat -->
+            <div id="ai-chat-container" class="flex-1 flex flex-col gap-4 p-4 overflow-y-auto">
+                <div class="flex justify-center items-center h-full">
+                    <div class="text-center text-gray-600 flex flex-col items-center">
+                        <svg class="mx-auto h-12 w-12" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" /></svg>
+                        <p class="mt-2 text-sm">Aguardando seu comando...</p>
+                    </div>
+                </div>
+                <!-- Balões de chat serão injetados aqui -->
+            </div>
+
+            <!-- Chips de Sugestão -->
+            <div class="flex-shrink-0 p-4 pt-2">
+                <div class="flex flex-wrap gap-2">
+                    <button class="suggestion-chip" onclick="sendSuggestion('Quais são os 3 erros mais recentes?')">Quais são os 3 erros mais recentes?</button>
+                    <button class="suggestion-chip" onclick="sendSuggestion('Sugira uma refatoração para o schema do BigQuery.')">Sugerir refatoração para o schema</button>
+                    <button class="suggestion-chip" onclick="sendSuggestion('Como posso melhorar a performance da função de ingestão?')">Melhorar performance de ingestão</button>
+                </div>
+            </div>
+
+            <!-- Área de Input -->
+            <div class="flex-shrink-0 p-4 border-t border-gray-800 bg-gray-900/50">
+                <div id="attached-file-display" class="hidden items-center bg-gray-700/50 text-gray-300 text-xs px-3 py-1 mb-2 rounded-md border border-gray-600">
+                    <svg class="h-4 w-4 mr-2 text-cyan-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M15.621 4.379a3 3 0 00-4.242 0l-7 7a3 3 0 004.241 4.243h.001l.497-.5a.75.75 0 011.064 1.057l-.498.501-.002.002a4.5 4.5 0 01-6.364-6.364l7-7a4.5 4.5 0 016.368 6.36l-3.455 3.553A2.625 2.625 0 117.44 9.55l3.45-3.55a.75.75 0 011.06 1.06l-3.45 3.55a1.125 1.125 0 001.59 1.591l3.456-3.554a3 3 0 000-4.242z" clip-rule="evenodd" /></svg>
+                    <span id="attached-file-name" class="truncate"></span>
+                    <button id="remove-attached-file-btn" class="ml-auto text-gray-400 hover:text-white">&times;</button>
+                </div>
+                <div class="flex items-center gap-2">
+                    <input type="file" id="pdf-upload-input" accept="application/pdf" class="hidden">
+                    <button id="pdf-upload-btn" class="btn btn-secondary p-3 self-stretch flex items-center justify-center" title="Anexar PDF">
+                         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M15.621 4.379a3 3 0 00-4.242 0l-7 7a3 3 0 004.241 4.243h.001l.497-.5a.75.75 0 011.064 1.057l-.498.501-.002.002a4.5 4.5 0 01-6.364-6.364l7-7a4.5 4.5 0 016.368 6.36l-3.455 3.553A2.625 2.625 0 117.44 9.55l3.45-3.55a.75.75 0 011.06 1.06l-3.45 3.55a1.125 1.125 0 001.59 1.591l3.456-3.554a3 3 0 000-4.242z" clip-rule="evenodd" /></svg>
+                    </button>
+                    <textarea id="sprint-prompt-input" class="flex-1 bg-gray-800 border border-gray-700 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-cyan-500 focus:outline-none resize-none" rows="1" style="min-height: 42px;" placeholder="Pressione Enter para enviar, Shift+Enter para nova linha..."></textarea>
+                    <button id="send-sprint-prompt-btn" class="btn btn-primary p-3 self-stretch flex items-center justify-center">
+                        <svg id="send-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" /></svg>
+                    </button>
+                </div>
+            </div>
+        </section>
+        
+        <section id="section-dna" class="content-section hidden flex flex-col h-full">
+            <div class="flex-shrink-0 flex justify-between items-center mb-4">
+                <h2 class="text-3xl font-brand text-gray-200">DNA do Projeto</h2>
+                <button id="save-dna-btn" class="btn btn-primary px-4 py-2 rounded">
+                    Salvar Alterações
+                </button>
+            </div>
+            <p class="text-sm text-gray-400 mb-4">
+                Este documento é a fonte de verdade para o Arquiteto de IA. Edite as diretrizes, padrões e lições aprendidas aqui.
+            </p>
+            <div class="card p-2 flex-1 flex flex-col">
+                <textarea id="dna-editor" class="flex-1 w-full bg-transparent text-gray-300 font-code text-sm p-4 resize-none focus:outline-none" placeholder="Carregando DNA do projeto..."></textarea>
+            </div>
+            <p id="dna-status" class="text-xs text-gray-500 mt-2 h-4"></p>
+        </section>
+
+        <section id="section-knowledge" class="content-section hidden flex flex-col h-full">
+            <div class="flex-shrink-0 flex justify-between items-center mb-4">
+                <h2 class="text-3xl font-brand text-gray-200">Base de Conhecimento</h2>
+            </div>
+            <div class="card p-6">
+                <h3 class="text-xl font-brand text-cyan-400">Enviar Novo Documento</h3>
+                <p class="mt-2 mb-4 text-gray-400 text-sm">
+                    Envie arquivos (PDF, TXT) para a base de conhecimento. A Cloud Function `processarDocumentoConhecimento` será acionada automaticamente para ler, quebrar em pedaços (chunks), gerar os embeddings e salvar no BigQuery.
+                </p>
+                
+                <div class="max-w-xl">
+                    <input type="file" id="knowledgeFileInput" class="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-cyan-500/10 file:text-cyan-300 hover:file:bg-cyan-500/20 cursor-pointer"/>
+                    <button id="uploadKnowledgeButton" class="btn btn-primary mt-4 w-full sm:w-auto">
+                        Enviar Documento
+                    </button>
+                    <div id="knowledgeStatusMessage" class="mt-3 text-sm"></div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+</div>
+
+<div id="ia-modal" class="modal-backdrop">
+    <div class="modal-content">
+        <header class="flex justify-between items-center border-b border-gray-700 pb-3 mb-4">
+            <h2 class="font-brand text-xl text-cyan-400">Análise da IA</h2>
+            <button onclick="closeIaModal()" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+        </header>
+        <div id="ia-modal-body" class="prose prose-invert max-w-none"></div>
+    </div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+
+<script>
+
+document.addEventListener('DOMContentLoaded', () => {
+    const firebaseConfig = {
+        apiKey: "AIzaSyA43C0ZrG7F_hUdue0-uG24WPgLkQkNQc0",
+        authDomain: "sharp-footing-475513-c7.firebaseapp.com",
+        projectId: "sharp-footing-475513-c7",
+        storageBucket: "sharp-footing-475513-c7.appspot.com",
+        messagingSenderId: "995790591545",
+        appId: "1:995790591545:web:9e369cc92784ddc7b85fe8"
+    };
+    try { firebase.initializeApp(firebaseConfig); } catch(e) { console.error("Firebase init failed", e); }
+    setupAuthListener();
+
+    const textarea = document.getElementById('sprint-prompt-input');
+    textarea.addEventListener('input', () => {
+        textarea.style.height = 'auto';
+        textarea.style.height = (textarea.scrollHeight) + 'px';
+    });
+    textarea.addEventListener('keydown', handlePromptKeydown);
+});
+
+// --- 1. CONSTANTES E ESTADO GLOBAL ---
+const EXPRESS_API_BASE_URL = '/api';
+const API_GET_SCHEMA = `${EXPRESS_API_BASE_URL}/getProjectSchema`;
+const API_GET_ERROS = `${EXPRESS_API_BASE_URL}/getErros`;
+const API_GET_STRUCTURE = `${EXPRESS_API_BASE_URL}/getProjectStructure`;
+const API_GERAR_ERRO = `${EXPRESS_API_BASE_URL}/gerarErroDeTeste`;
+const API_UPDATE_STATUS = `${EXPRESS_API_BASE_URL}/updateErrorStatus`;
+const API_DELETE_ERROR = `${EXPRESS_API_BASE_URL}/deleteError`;
+const API_ANALISAR_ERRO = `${EXPRESS_API_BASE_URL}/analisarErroComIA`;
+const API_UPDATE_STATUS_BULK = `${EXPRESS_API_BASE_URL}/updateErrorStatusBulk`;
+const API_DELETE_ERROR_BULK = `${EXPRESS_API_BASE_URL}/deleteErrorBulk`;
+const API_ANALYZE_STRUCTURE = `${EXPRESS_API_BASE_URL}/analisarEstruturaComIA`;
+const API_ASSISTENTE_SPRINT = `${EXPRESS_API_BASE_URL}/assistenteSprint`;
+
+let currentUser = null;
+let errorOffset = 0;
+const ERROR_PAGE_SIZE = 10;
+let allErrors = [];
+let currentStatusFilter = 'NOVO';
+let projectStructureData = null;
+let attachedPdfText = ''; 
+let aiChatHistory = [];
+
+// --- 2. FUNÇÕES DE CONTROLE E INICIALIZAÇÃO ---
+function showScreen(screen) {
+    ['loading-screen', 'denied-screen', 'dashcode-screen'].forEach(id => document.getElementById(id).classList.add('hidden'));
+    document.getElementById(`${screen}-screen`).classList.remove('hidden');
+}
+
+function setupAuthListener() {
+    firebase.auth().onAuthStateChanged(user => {
+        if (user) {
+            initializeApp(user);
+        } else {
+            window.location.href = '/app.html';
+        }
+    });
+}
+
+function initializeApp(user) {
+    currentUser = user;
+    showScreen('dashcode');
+    document.getElementById('user-info').innerText = `Admin: ${user.email}`;
+    
+    // Listeners existentes
+    document.getElementById('load-more-errors').addEventListener('click', () => fetchErrors(true));
+    document.getElementById('error-filter').addEventListener('input', (e) => filterErrors(e.target.value));
+    document.getElementById('generate-error-btn').addEventListener('click', gerarErro);
+    document.getElementById('refresh-errors-btn').addEventListener('click', refreshErrors);
+    document.getElementById('select-all-errors').addEventListener('change', toggleSelectAllErrors);
+    document.getElementById('bulk-action-apply').addEventListener('click', handleBulkAction);
+    document.getElementById('analyze-structure-btn').addEventListener('click', analisarEstruturaComIA);
+    document.getElementById('send-sprint-prompt-btn').addEventListener('click', handleSprintPrompt);
+    document.getElementById('pdf-upload-btn').addEventListener('click', () => document.getElementById('pdf-upload-input').click());
+    document.getElementById('pdf-upload-input').addEventListener('change', handlePdfUpload);
+    document.getElementById('remove-attached-file-btn').addEventListener('click', removeAttachedFile);
+
+    // Listener Visão Geral
+    const overviewContent = document.getElementById('overview-content');
+    const saveOverviewBtn = document.getElementById('save-overview-btn');
+    overviewContent.addEventListener('input', () => saveOverviewBtn.style.display = 'inline-block');
+    saveOverviewBtn.addEventListener('click', saveOverview);
+    loadOverview();
+
+    // ===== CORREÇÃO: TODA A LÓGICA DO DNA DO PROJETO FOI MOVIDA PARA CÁ =====
+    
+    // --- LÓGICA PARA O DNA DO PROJETO ---
+    const API_GET_DNA = '/api/getProjectDna';
+    const API_UPDATE_DNA = '/api/updateProjectDna';
+    const dnaEditor = document.getElementById('dna-editor');
+    const saveDnaBtn = document.getElementById('save-dna-btn');
+    const dnaStatus = document.getElementById('dna-status');
+    let originalDnaContent = '';
+
+    // Adicionar listener ao botão de salvar
+    saveDnaBtn.addEventListener('click', saveProjectDna);
+
+    // Adicionar listener ao link da sidebar para carregar o conteúdo
+    const dnaLink = document.querySelector('a[data-section="dna"]');
+    dnaLink.addEventListener('click', loadProjectDna);
+    
+    // As funções agora vivem dentro do escopo de initializeApp
+    async function loadProjectDna() {
+        try {
+            dnaEditor.value = 'Carregando...';
+            const data = await fetchAuthenticated(API_GET_DNA);
+            originalDnaContent = data.content;
+            dnaEditor.value = originalDnaContent;
+            const lastModified = new Date(data.last_modified.value || data.last_modified);
+            dnaStatus.textContent = `Última modificação: ${lastModified.toLocaleString('pt-BR')}`;
+        } catch (error) {
+            dnaEditor.value = `Erro ao carregar o DNA: ${error.message}`;
+            showToast(`Falha ao carregar DNA: ${error.message}`, 'error');
+        }
+    }
+
+    async function saveProjectDna() {
+        const newContent = dnaEditor.value;
+        if (newContent === originalDnaContent) {
+            showToast('Nenhuma alteração para salvar.', 'success');
+            return;
+        }
+
+        saveDnaBtn.disabled = true;
+        saveDnaBtn.textContent = 'Salvando...';
+        
+        try {
+            await fetchAuthenticated(API_UPDATE_DNA, 'POST', { content: newContent });
+            originalDnaContent = newContent; // Atualiza o conteúdo original
+            showToast('DNA do projeto salvo com sucesso!', 'success');
+            loadProjectDna(); // Recarrega para atualizar a data de modificação
+        } catch (error) {
+            showToast(`Falha ao salvar DNA: ${error.message}`, 'error');
+        } finally {
+            saveDnaBtn.disabled = false;
+            saveDnaBtn.textContent = 'Salvar Alterações';
+        }
+    }
+
+    // ========================================================================
+    
+    setupSidebarNavigation();
+    setupStatusFilters();
+
+    Promise.all([
+        fetchSchema(),
+        fetchErrors(false),
+        fetchStructure()
+    ]).catch(err => {
+        console.error("Erro na inicialização:", err)
+        showToast(`Erro na inicialização: ${err.message}`, 'error');
+    });
+    
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.action-menu-container')) {
+            document.querySelectorAll('.action-menu.visible').forEach(menu => menu.classList.remove('visible'));
+        }
+    });
+}
+
+function setupSidebarNavigation() {
+    const links = document.querySelectorAll('.sidebar-link');
+    const main = document.querySelector('main');
+    
+    links.forEach(link => {
+        link.addEventListener('click', (e) => {
+            e.preventDefault();
+            const sectionId = e.currentTarget.getAttribute('data-section');
+            
+            links.forEach(l => l.classList.remove('active'));
+            e.currentTarget.classList.add('active');
+            
+            document.querySelectorAll('.content-section').forEach(section => {
+                section.classList.add('hidden');
+            });
+            
+            if (sectionId === 'assistant') {
+                main.classList.add('flex', 'flex-col', 'overflow-hidden');
+                main.classList.remove('overflow-y-auto');
+            } else {
+                main.classList.remove('flex', 'flex-col', 'overflow-hidden');
+                main.classList.add('overflow-y-auto');
+            }
+            
+            const targetSection = document.getElementById(`section-${sectionId}`);
+            targetSection.classList.remove('hidden');
+        });
+    });
+    document.querySelector('.sidebar-link[data-section="overview"]').click();
+}
+
+function setupStatusFilters() {
+    document.querySelectorAll('.status-filter').forEach(filter => {
+        filter.addEventListener('click', () => {
+            document.querySelectorAll('.status-filter').forEach(f => f.classList.remove('active'));
+            filter.classList.add('active');
+            currentStatusFilter = filter.dataset.status;
+            fetchErrors(false);
+        });
+    });
+}
+
+function logout() {
+    firebase.auth().signOut().then(() => window.location.href = '/app.html');
+}
+
+// --- 3. FUNÇÕES DE DADOS (API) ---
+async function fetchAuthenticated(url, method = 'GET', body = null) {
+    if (!currentUser) throw new Error("Usuário não autenticado.");
+    const token = await currentUser.getIdToken();
+    const response = await fetch(url, {
+        method,
+        headers: {'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json'},
+        body: body ? JSON.stringify(body) : null
+    });
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ message: response.statusText }));
+        throw new Error(`Erro na API (${response.status}): ${errorData.message || 'Erro desconhecido'}`);
+    }
+    return response.json();
+}
+
+async function fetchStructure() {
+    const view = document.getElementById('structure-view');
+    view.innerHTML = `<p class="text-gray-500 animate-pulse">Carregando estrutura...</p>`;
+    try {
+        const data = await fetchAuthenticated(API_GET_STRUCTURE);
+        if (data.structure) {
+            projectStructureData = data.structure; 
+            renderStructure(data.structure);
+        } else {
+            throw new Error("A resposta da API de estrutura não continha o formato esperado.");
+        }
+    } catch (error) {
+        console.error("Erro ao buscar estrutura do projeto:", error);
+        view.innerHTML = `<p class="text-red-500">Falha ao carregar a estrutura: ${error.message}</p>`;
+    }
+}
+
+async function fetchSchema() {
+    const view = document.getElementById('schema-view');
+    view.innerHTML = `<p class="text-gray-500 animate-pulse">Carregando schema...</p>`;
+    try {
+        const data = await fetchAuthenticated(API_GET_SCHEMA);
+        renderSchema(data.bigquerySchema);
+    } catch (error) {
+        console.error("Erro ao buscar schema:", error);
+        view.innerHTML = `<p class="text-red-500">Falha ao carregar schema: ${error.message}</p>`;
+    }
+}
+
+async function refreshErrors() {
+    const btn = document.getElementById('refresh-errors-btn');
+    btn.disabled = true;
+    btn.querySelector('.btn-text').textContent = 'Atualizando...';
+    
+    await fetchErrors(false);
+    
+    btn.disabled = false;
+    btn.querySelector('.btn-text').textContent = 'Atualizar';
+    showToast('Lista de erros atualizada!', 'success');
+}
+
+async function fetchErrors(isLoadMore = false) {
+    const loadMoreBtn = document.getElementById('load-more-errors');
+    const placeholder = document.getElementById('error-list-placeholder');
+    const refreshBtn = document.getElementById('refresh-errors-btn');
+    
+    if (!isLoadMore) { 
+        errorOffset = 0; 
+        allErrors = [];
+        document.getElementById('error-list-container').innerHTML = '';
+        placeholder.innerHTML = '<p class="text-gray-500 animate-pulse">Buscando logs...</p>';
+        placeholder.style.display = 'block';
+    }
+    loadMoreBtn.disabled = true; 
+    loadMoreBtn.textContent = 'Carregando...';
+    refreshBtn.disabled = true;
+    refreshBtn.querySelector('.btn-text').textContent = 'Atualizando...';
+    
+    try {
+        let url = `${API_GET_ERROS}?limit=${ERROR_PAGE_SIZE}&offset=${errorOffset}`;
+        if (currentStatusFilter !== 'TODOS') url += `&status=${currentStatusFilter}`;
+        
+        const data = await fetchAuthenticated(url);
+        if (data.items && data.items.length > 0) {
+            allErrors.push(...data.items);
+            filterErrors(document.getElementById('error-filter').value);
+        } else if (!isLoadMore) {
+            renderErrorList([]);
+        }
+        errorOffset = data.nextOffset;
+        loadMoreBtn.style.display = data.nextOffset ? 'block' : 'none';
+    } catch (error) {
+        console.error("Erro ao buscar erros:", error);
+        if (!isLoadMore) placeholder.innerHTML = `<p class="text-red-500">Falha ao carregar os erros: ${error.message}</p>`;
+        showToast(`Falha ao buscar erros: ${error.message}`, 'error');
+    } finally {
+        loadMoreBtn.disabled = false; 
+        loadMoreBtn.textContent = 'Carregar Mais';
+        refreshBtn.disabled = false;
+        refreshBtn.querySelector('.btn-text').textContent = 'Atualizar';
+        updateBulkActionsVisibility();
+    }
+}
+
+function filterErrors(searchTerm) {
+    const lowerCaseSearch = searchTerm.toLowerCase();
+    const filteredErrors = allErrors.filter(e => 
+        (e.mensagem || '').toLowerCase().includes(lowerCaseSearch) || 
+        (e.funcao_ou_componente || '').toLowerCase().includes(lowerCaseSearch)
+    );
+    renderErrorList(filteredErrors);
+}
+
+async function gerarErro() {
+    const btn = document.getElementById('generate-error-btn');
+    btn.disabled = true; btn.textContent = 'Gerando...';
+    try {
+        await fetchAuthenticated(API_GERAR_ERRO, 'POST');
+        showToast('Erro de teste gerado! A lista será atualizada.', 'success');
+        await refreshErrors();
+    } catch (error) {
+        showToast(`Falha ao gerar o erro: ${error.message}`, 'error');
+    } finally {
+        btn.disabled = false; btn.textContent = 'Gerar Erro de Teste';
+    }
+}
+
+// --- 4. FUNÇÕES DE RENDERIZAÇÃO ---
+function renderErrorList(errors) {
+    const container = document.getElementById('error-list-container');
+    const placeholder = document.getElementById('error-list-placeholder');
+    container.innerHTML = '';
+
+    if (errors.length === 0) {
+        placeholder.innerHTML = allErrors.length > 0 ? 
+            '<p class="text-gray-400">Nenhum erro corresponde ao filtro.</p>' : 
+            `<p class="text-gray-400">Nenhum erro encontrado para o status '${currentStatusFilter}'.</p>`;
+        placeholder.style.display = 'block';
+    } else {
+        placeholder.style.display = 'none';
+        errors.forEach(error => renderErrorCard(error, container));
+    }
+    document.getElementById('select-all-errors').checked = false;
+    updateBulkActionsVisibility();
+}
+
+function renderSchema(schema) {
+    const view = document.getElementById('schema-view');
+    if (!schema || schema.length === 0) {
+        view.innerHTML = `<p class="text-gray-500">Nenhum schema encontrado.</p>`;
+        return;
+    }
+    view.innerHTML = schema.map(dataset => `<div><h3 class="text-cyan-400">${dataset.id}</h3><ul class="pl-4 border-l border-gray-700">${(dataset.tables || []).map(table => `<li class="mt-2"><p class="text-green-400">${table.id} <span class="text-xs text-gray-500">${table.type}</span></p><ul class="pl-4 text-gray-400">${(table.schema || []).map(field => `<li>- ${field.name}: <span class="text-yellow-400">${field.type}</span></li>`).join('')}</ul></li>`).join('')}</ul></div>`).join('');
+}
+
+function renderTree(items) {
+    if (!items || items.length === 0) return document.createElement('div');
+    
+    const folderIcon = `<svg class="h-5 w-5 mr-2 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M2 6a2 2 0 012-2h5l2 2h5a2 2 0 012 2v6a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" /></svg>`;
+    const fileIcon = `<svg class="h-5 w-5 mr-2 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V8a2 2 0 00-2-2h-5L9 4H4zm0 6a2 2 0 100 4 2 2 0 000-4z" clip-rule="evenodd" /></svg>`;
+    const infoIcon = `<svg class="h-5 w-5 mr-2 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd" /></svg>`;
+
+    const container = document.createElement('div');
+    items.forEach(item => {
+        const isFolder = item.type === 'folder';
+        let icon = fileIcon;
+        let color = 'text-gray-400';
+        
+        if (isFolder) {
+            icon = folderIcon;
+            color = 'text-blue-400';
+        } else if (item.type === 'info') {
+            icon = infoIcon;
+            color = 'text-yellow-400';
+        }
+        
+        const itemDiv = document.createElement('div');
+        itemDiv.className = 'pl-4';
+
+        const span = document.createElement('span');
+        span.className = `${color} ${isFolder ? 'cursor-pointer hover:underline' : ''} flex items-center`;
+        span.innerHTML = `${icon} ${item.name}`;
+        itemDiv.appendChild(span);
+        
+        if (isFolder && item.children && item.children.length > 0) {
+            const childrenContainer = renderTree(item.children);
+            childrenContainer.className = 'hidden pl-2';
+            itemDiv.appendChild(childrenContainer);
+            span.addEventListener('click', () => childrenContainer.classList.toggle('hidden'));
+        }
+        container.appendChild(itemDiv);
+    });
+    return container;
+}
+
+function renderStructure(structure) {
+    const view = document.getElementById('structure-view');
+    if (!structure) {
+        view.innerHTML = `<p class="text-gray-500">Nenhuma estrutura encontrada.</p>`;
+        return;
+    }
+    
+    view.innerHTML = `
+        <div><h3 class="text-purple-400 text-lg font-semibold">Raiz</h3><div class="mt-2"></div></div>
+        <div class="mt-4"><h3 class="text-purple-400 text-lg font-semibold">Backend (functions)</h3><div class="mt-2"></div></div>
+        <div class="mt-4"><h3 class="text-purple-400 text-lg font-semibold">Frontend (public)</h3><div class="mt-2"></div></div>`;
+    if(structure.root) view.querySelector('div:nth-child(1) > div').appendChild(renderTree(structure.root));
+    if(structure.backend) view.querySelector('div:nth-child(2) > div').appendChild(renderTree(structure.backend));
+    if(structure.frontend) view.querySelector('div:nth-child(3) > div').appendChild(renderTree(structure.frontend));
+}
+
+function formatRelativeTime(date) {
+    const now = new Date();
+    const seconds = Math.round((now - date) / 1000);
+    if (seconds < 60) return `agora`;
+    const minutes = Math.round(seconds / 60);
+    if (minutes < 60) return `há ${minutes} min`;
+    const hours = Math.round(minutes / 60);
+    if (hours < 24) return `há ${hours} h`;
+    const days = Math.round(hours / 24);
+    if (days === 1) return `ontem`;
+    if (days < 7) return `há ${days} dias`;
+    return date.toLocaleDateString('pt-BR');
+}
+
+function getStatusBadge(status) {
+    const s = (status || 'NOVO').toUpperCase();
+    const styles = {
+        'NOVO': 'bg-blue-900 text-blue-300',
+        'EM_ANALISE': 'bg-yellow-800 text-yellow-300',
+        'RESOLVIDO': 'bg-green-800 text-green-300',
+    };
+    return `<span class="px-2 py-0.5 text-xs font-semibold rounded-full ${styles[s]}">${s.replace('_', ' ')}</span>`;
+}
+
+function renderErrorCard(error, container) {
+    const dateSource = error.last_modified || error.timestamp;
+    const dateValue = dateSource ? new Date(dateSource.value || dateSource) : new Date();
+    const relativeDate = formatRelativeTime(dateValue);
+
+    const hasId = error.error_id && typeof error.error_id === 'string';
+    const errorId = hasId ? error.error_id : `no-id-${Math.random().toString(36).substring(2)}`;
+    
+    const card = document.createElement('div');
+    card.className = 'card p-4 relative';
+    card.id = `row-${errorId}`;
+    
+    const actionButtonHtml = hasId ? `
+        <button class="p-1 rounded-full text-gray-400 hover:bg-gray-700 hover:text-white focus:outline-none action-menu-trigger">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" /></svg>
+        </button>
+        <div class="action-menu absolute right-0 mt-2 w-56 z-10">
+            <div class="py-1" role="menu" aria-orientation="vertical">
+                <a href="#" class="action-menu-item text-sm text-gray-300 analyze-btn">
+                    <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" /></svg>
+                    Analisar com IA
+                </a>
+                <a href="#" class="action-menu-item text-sm text-gray-300 status-change-btn" data-new-status="EM_ANALISE">
+                    <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M2 10a8 8 0 1116 0 8 8 0 01-16 0zm9.053-2.943a.75.75 0 011.06 1.06L9.06 10l2.053 1.883a.75.75 0 11-1.06 1.06L7.94 10.94a.75.75 0 010-1.06l2.113-1.947z" clip-rule="evenodd" /></svg>
+                    Mover para 'Em Análise'
+                </a>
+                <a href="#" class="action-menu-item text-sm text-gray-300 status-change-btn" data-new-status="RESOLVIDO">
+                     <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.052-.143z" clip-rule="evenodd" /></svg>
+                    Marcar como 'Resolvido'
+                </a>
+                <div class="border-t border-gray-600 my-1"></div>
+                <a href="#" class="action-menu-item text-sm text-red-400 delete-btn">
+                    <svg class="h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M8.75 1A2.75 2.75 0 006 3.75v.443c-.795.077-1.58.22-2.365.468a.75.75 0 10.23 1.482l.149-.022.841 10.518A2.75 2.75 0 007.596 19h4.807a2.75 2.75 0 002.742-2.53l.841-10.52.149.023a.75.75 0 00.23-1.482A41.03 41.03 0 0014 4.193v-.443A2.75 2.75 0 0011.25 1h-2.5zM10 4c.84 0 1.673.025 2.5.075V3.75c0-.69-.56-1.25-1.25-1.25h-2.5c-.69 0-1.25.56-1.25 1.25v.325C8.327 4.025 9.16 4 10 4zM8.58 7.72a.75.75 0 00-1.5.06l.3 7.5a.75.75 0 101.5-.06l-.3-7.5zm4.34.06a.75.75 0 10-1.5-.06l-.3 7.5a.75.75 0 101.5.06l.3-7.5z" clip-rule="evenodd" /></svg>
+                    Excluir
+                </a>
+            </div>
+        </div>` : `
+        <button class="p-1 rounded-full cursor-not-allowed opacity-50" title="Ações desabilitadas: erro antigo sem ID.">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" /></svg>
+        </button>`;
+
+    card.innerHTML = `
+        <div class="flex justify-between items-start">
+            <div class="flex items-start gap-3">
+                <input type="checkbox" data-error-id="${errorId}" class="error-checkbox bg-gray-700 border-gray-600 rounded mt-1" ${!hasId ? 'disabled' : ''}>
+                <div>
+                    <div class="flex items-center gap-2">
+                        ${getStatusBadge(error.status)}
+                        <span class="font-semibold text-gray-300">${error.funcao_ou_componente || 'N/A'}</span>
+                    </div>
+                    <p class="mt-1 font-code text-sm text-red-400" title="${error.mensagem}">${error.mensagem || 'N/A'}</p>
+                    <p class="mt-2 text-xs text-gray-500" title="${dateValue.toLocaleString('pt-BR')}">${relativeDate}</p>
+                </div>
+            </div>
+            <div class="relative inline-block text-left action-menu-container flex-shrink-0 ml-2">
+                ${actionButtonHtml}
+            </div>
+        </div>
+    `;
+
+    if (hasId) {
+        card.querySelector('.error-checkbox').addEventListener('change', updateBulkActionsVisibility);
+        card.querySelector('.action-menu-trigger').addEventListener('click', (e) => {
+            e.stopPropagation();
+            const currentMenu = card.querySelector('.action-menu');
+            document.querySelectorAll('.action-menu.visible').forEach(menu => {
+                if (menu !== currentMenu) {
+                    menu.classList.remove('visible');
+                }
+            });
+            currentMenu.classList.toggle('visible');
+        });
+        card.querySelector('.analyze-btn').addEventListener('click', (e) => { e.preventDefault(); analisarErro(error); });
+        card.querySelectorAll('.status-change-btn').forEach(btn => {
+            btn.addEventListener('click', (e) => { e.preventDefault(); handleStatusUpdate(errorId, e.target.dataset.newStatus); });
+        });
+        card.querySelector('.delete-btn').addEventListener('click', (e) => { e.preventDefault(); handleErrorDelete(errorId); });
+    }
+    container.appendChild(card);
+}
+
+
+// --- 5. FUNÇÕES DE AÇÃO E MODAL ---
+async function analisarErro(error) {
+    const iaModal = document.getElementById('ia-modal');
+    const iaModalBody = document.getElementById('ia-modal-body');
+
+    iaModalBody.innerHTML = '<p class="animate-pulse">Verificando análises salvas... Se nada for encontrado, a IA irá gerar uma nova.</p>';
+    iaModal.classList.add('visible');
+
+    try {
+        const analise = await fetchAuthenticated(API_ANALISAR_ERRO, 'POST', { error });
+
+        const errorInCache = allErrors.find(e => e.error_id === error.error_id);
+        if (errorInCache) {
+            errorInCache.analise_ia = analise;
+        }
+
+        iaModalBody.innerHTML = `<h3 class="font-brand mt-4 text-lg">O que aconteceu?</h3><p class="text-gray-300">${analise.explicacao.replace(/\n/g, '<br>')}</p><h3 class="font-brand mt-6 text-lg">Sugestão de Correção</h3><pre class="bg-gray-900 p-4 rounded-md font-code text-sm mt-2 overflow-x-auto"><code>${escapeHtml(analise.sugestao_codigo) || 'Nenhuma sugestão de código gerada.'}</code></pre>`;
+    
+    } catch (e) {
+        iaModalBody.innerHTML = `<p class="text-red-400">Falha ao analisar o erro: ${e.message}</p>`;
+    }
+}
+
+function closeIaModal() {
+    document.getElementById('ia-modal').classList.remove('visible');
+}
+
+async function handleStatusUpdate(errorId, newStatus) {
+    const card = document.getElementById(`row-${errorId}`);
+    try {
+        await fetchAuthenticated(API_UPDATE_STATUS, 'POST', { errorId, newStatus });
+        showToast(`Status do erro atualizado para ${newStatus}.`, 'success');
+        const error = allErrors.find(e => e.error_id === errorId);
+        if(error) error.status = newStatus;
+
+        if (currentStatusFilter !== 'TODOS' && currentStatusFilter !== newStatus) {
+            card.style.transition = 'opacity 0.5s ease, transform 0.5s ease, height 0.5s ease';
+            card.style.opacity = '0';
+            card.style.transform = 'scale(0.95)';
+            card.style.height = `${card.offsetHeight}px`;
+            setTimeout(() => card.style.height = '0px', 50);
+            setTimeout(() => {
+                card.remove();
+                allErrors = allErrors.filter(e => e.error_id !== errorId);
+                if(document.getElementById('error-list-container').children.length === 0) renderErrorList([]);
+            }, 550);
+        } else {
+            card.querySelector('.flex .gap-2').innerHTML = `
+                ${getStatusBadge(newStatus)}
+                <span class="font-semibold text-gray-300">${error.funcao_ou_componente || 'N/A'}</span>
+            `;
+        }
+    } catch (err) {
+        showToast(`Falha ao atualizar o status: ${err.message}`, 'error');
+    }
+}
+
+async function handleErrorDelete(errorId) {
+    if (!confirm("Tem certeza que deseja excluir este erro permanentemente?")) return;
+    
+    const card = document.getElementById(`row-${errorId}`);
+    try {
+        await fetchAuthenticated(API_DELETE_ERROR, 'POST', { errorId });
+        showToast('Erro excluído com sucesso.', 'success');
+        card.style.transition = 'opacity 0.5s ease, transform 0.5s ease, height 0.5s ease, margin 0.5s ease';
+        card.style.opacity = '0';
+        card.style.transform = 'scale(0.95)';
+        card.style.height = `${card.offsetHeight}px`;
+        card.style.marginBottom = '0px';
+        setTimeout(() => card.style.height = '0px', 50);
+        setTimeout(() => {
+            card.remove();
+            allErrors = allErrors.filter(e => e.error_id !== errorId);
+            if(document.getElementById('error-list-container').children.length === 0) renderErrorList([]);
+        }, 550);
+    } catch(err) {
+        showToast(`Falha ao excluir o erro: ${err.message}`, 'error');
+    }
+}
+
+function saveOverview() {
+    const content = document.getElementById('overview-content').innerHTML;
+    localStorage.setItem('liciai_overview_content', content);
+    document.getElementById('save-overview-btn').style.display = 'none';
+    showToast('Visão geral salva localmente!', 'success');
+}
+
+function loadOverview() {
+    const savedContent = localStorage.getItem('liciai_overview_content');
+    if (savedContent) {
+        document.getElementById('overview-content').innerHTML = savedContent;
+    }
+}
+
+function getSelectedErrorIds() {
+    return Array.from(document.querySelectorAll('.error-checkbox:checked')).map(cb => cb.dataset.errorId);
+}
+
+function updateBulkActionsVisibility() {
+    const selectedIds = getSelectedErrorIds();
+    const container = document.getElementById('bulk-actions-container');
+    container.style.display = selectedIds.length > 0 ? 'flex' : 'none';
+}
+
+function toggleSelectAllErrors(event) {
+    const isChecked = event.target.checked;
+    document.querySelectorAll('.error-checkbox:not(:disabled)').forEach(cb => cb.checked = isChecked);
+    updateBulkActionsVisibility();
+}
+
+async function handleBulkAction() {
+    const action = document.getElementById('bulk-action-select').value;
+    const errorIds = getSelectedErrorIds();
+    if (!action || errorIds.length === 0) return;
+
+    const confirmText = action === 'DELETE' 
+        ? `Tem certeza que deseja excluir ${errorIds.length} erros permanentemente?`
+        : `Tem certeza que deseja aplicar a ação em ${errorIds.length} erros?`;
+    
+    if (!confirm(confirmText)) return;
+
+    try {
+        if (action === 'DELETE') {
+            await fetchAuthenticated(API_DELETE_ERROR_BULK, 'POST', { errorIds });
+        } else {
+            await fetchAuthenticated(API_UPDATE_STATUS_BULK, 'POST', { errorIds, newStatus: action });
+        }
+        showToast('Ação em massa aplicada com sucesso!', 'success');
+        await refreshErrors();
+    } catch (err) {
+        showToast(`Falha ao aplicar ação em massa: ${err.message}`, 'error');
+    }
+}
+
+async function analisarEstruturaComIA() {
+    if (!projectStructureData) {
+        showToast("A estrutura do projeto ainda não foi carregada.", 'error');
+        return;
+    }
+
+    const btn = document.getElementById('analyze-structure-btn');
+    const container = document.getElementById('structure-analysis-container');
+    const resultDiv = document.getElementById('structure-analysis-result');
+
+    btn.disabled = true;
+    btn.innerHTML = `<svg class="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
+    container.style.display = 'block';
+    resultDiv.innerHTML = '<p class="animate-pulse">A IA está analisando a estrutura e o conteúdo do projeto...</p>';
+    
+    try {
+        const analysis = await fetchAuthenticated(API_ANALYZE_STRUCTURE, 'POST', { structure: projectStructureData });
+        
+        resultDiv.innerHTML = `
+            <p>${analysis.summary}</p>
+            <h4 class="font-brand mt-4 text-gray-300">Pontos-Chave da Arquitetura</h4>
+            <ul class="list-disc pl-5 mt-2 space-y-1">
+                ${(analysis.keyPoints || []).map(p => `<li>${p}</li>`).join('')}
+            </ul>
+            <h4 class="font-brand mt-4 text-gray-300">Sugestões de Melhoria</h4>
+            <ul class="list-disc pl-5 mt-2 space-y-1">
+                ${(analysis.nextSteps || []).map(s => `<li>${s}</li>`).join('')}
+            </ul>
+        `;
+    } catch (error) {
+        resultDiv.innerHTML = `<p class="text-red-400">Falha ao analisar a estrutura: ${error.message}</p>`;
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Analisar com IA';
+    }
+}
+
+// --- FUNÇÕES PARA O ARQUITETO DE IA ---
+function handlePromptKeydown(event) {
+    if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        handleSprintPrompt();
+    }
+}
+
+async function handlePdfUpload(event) {
+    const file = event.target.files[0];
+    if (!file) return;
+
+    showToast(`Lendo o arquivo: ${file.name}...`);
+    
+    try {
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const typedarray = new Uint8Array(e.target.result);
+            const pdf = await pdfjsLib.getDocument(typedarray).promise;
+            let fullText = '';
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                fullText += textContent.items.map(item => item.str).join(' ') + '\n';
+            }
+            attachedPdfText = fullText;
+            
+            document.getElementById('attached-file-name').textContent = file.name;
+            document.getElementById('attached-file-display').style.display = 'flex';
+
+            showToast(`Arquivo "${file.name}" lido e anexado com sucesso!`, 'success');
+        };
+        reader.readAsArrayBuffer(file);
+    } catch (error) {
+        console.error("Erro ao ler PDF:", error);
+        showToast(`Falha ao ler o arquivo PDF: ${error.message}`, 'error');
+        removeAttachedFile();
+    } finally {
+        event.target.value = '';
+    }
+}
+
+function removeAttachedFile() {
+    attachedPdfText = '';
+    document.getElementById('attached-file-name').textContent = '';
+    document.getElementById('attached-file-display').style.display = 'none';
+}
+
+function sendSuggestion(prompt) {
+    document.getElementById('sprint-prompt-input').value = prompt;
+    handleSprintPrompt();
+}
+
+function renderUserPrompt(prompt) {
+    const container = document.getElementById('ai-chat-container');
+    const placeholder = container.querySelector('.flex.justify-center.items-center');
+    if (placeholder) {
+        container.innerHTML = '';
+    }
+    const bubble = document.createElement('div');
+    bubble.className = 'chat-bubble user';
+    bubble.textContent = prompt;
+    container.appendChild(bubble);
+    container.scrollTop = container.scrollHeight;
+}
+
+async function handleSprintPrompt() {
+    const input = document.getElementById('sprint-prompt-input');
+    const btn = document.getElementById('send-sprint-prompt-btn');
+    let userPromptText = input.value;
+
+    if (!userPromptText.trim() && !attachedPdfText.trim()) return;
+
+    renderUserPrompt(userPromptText + (attachedPdfText ? `\n\n[PDF Anexado: ${document.getElementById('attached-file-name').textContent}]` : ''));
+    aiChatHistory.push({ role: 'user', text: userPromptText + (attachedPdfText ? `\n\n--- CONTEXTO DO PDF ANEXADO ---\n${attachedPdfText}` : '') });
+    
+    const fullPromptForAPI = userPromptText + (attachedPdfText ? `\n\n--- CONTEXTO DO PDF ANEXADO ---\n${attachedPdfText}` : '');
+    
+    input.value = '';
+    input.style.height = '42px';
+    removeAttachedFile();
+
+    btn.disabled = true;
+    btn.innerHTML = `<svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>`;
+    input.disabled = true;
+
+    try {
+        const [structureData, schemaData, errorsData] = await Promise.all([
+            fetchAuthenticated(API_GET_STRUCTURE),
+            fetchAuthenticated(API_GET_SCHEMA),
+            fetchAuthenticated(`${API_GET_ERROS}?limit=5&status=NOVO`)
+        ]);
+        
+        const projectContext = {
+            structure: structureData.structure,
+            schema: schemaData.bigquerySchema,
+            recentErrors: errorsData.items.map(e => ({ msg: e.mensagem, func: e.funcao_ou_componente }))
+        };
+
+        const thinkingBubble = renderIaBubble({ explicacao: '<p class="animate-pulse">Analisando contexto e gerando resposta...</p>', alteracoes: [] }, true);
+
+        const response = await fetchAuthenticated(API_ASSISTENTE_SPRINT, 'POST', { 
+            userPrompt: fullPromptForAPI, 
+            projectContext,
+            chatHistory: aiChatHistory.slice(0, -1)
+        });
+        
+        updateIaBubble(thinkingBubble, response);
+        aiChatHistory.push({ role: 'model', text: JSON.stringify(response) });
+
+    } catch (error) {
+        renderIaBubble({ explicacao: `<p class="text-red-400">Erro do Arquiteto de IA: ${error.message}</p>`, alteracoes: [] });
+        showToast(`Erro do Arquiteto de IA: ${error.message}`, 'error');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<svg id="send-icon" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" /></svg>`;
+        input.disabled = false;
+        input.focus();
+    }
+}
+
+function renderIaBubble(data, isThinking = false) {
+    const container = document.getElementById('ai-chat-container');
+    const bubble = document.createElement('div');
+    bubble.className = 'chat-bubble ia prose prose-sm max-w-none prose-invert';
+    updateIaBubble(bubble, data);
+    container.appendChild(bubble);
+    container.scrollTop = container.scrollHeight;
+    return bubble;
+}
+
+function updateIaBubble(bubbleElement, data) {
+    const exp = typeof data.explicacao === 'string'
+        ? data.explicacao
+        : escapeHtml(data.explicacao);
+    let html = `<h4 class="font-brand text-lg text-cyan-400 mt-0">Plano de Ação</h4> <div class="text-gray-300">${exp.replace(/\n/g, '<br>')}</div>`;
+
+    if (data.alteracoes && data.alteracoes.length > 0) {
+        html += `<h4 class="mt-4 font-brand text-lg text-cyan-400">Alterações de Código Sugeridas</h4>`;
+        data.alteracoes.forEach(alt => {
+            html += `
+                <div class="mt-3">
+                    <p class="text-sm font-semibold">${alt.acao}: <span class="font-code text-green-400">${alt.arquivo}</span></p>
+                    <div class="relative mt-1">
+                        <button class="absolute top-2 right-2 bg-gray-700 hover:bg-gray-600 text-xs px-2 py-1 rounded" onclick="copyCode(this)">Copiar</button>
+                        <pre class="bg-gray-900 p-3 rounded-md overflow-x-auto text-sm"><code class="language-typescript">${escapeHtml(alt.codigo)}</code></pre>
+                    </div>
+                </div>
+            `;
+        });
+    }
+    bubbleElement.innerHTML = html;
+    bubbleElement.scrollIntoView({ behavior: 'smooth', block: 'end' });
+}
+
+function copyCode(button) {
+    const code = button.nextElementSibling.querySelector('code').innerText;
+    const textarea = document.createElement('textarea');
+    textarea.value = code;
+    document.body.appendChild(textarea);
+    textarea.select();
+    try {
+        document.execCommand('copy');
+        button.innerText = 'Copiado!';
+        showToast('Código copiado para a área de transferência!', 'success');
+        setTimeout(() => { button.innerText = 'Copiar'; }, 2000);
+    } catch (err) {
+        showToast('Falha ao copiar o código.', 'error');
+    }
+    document.body.removeChild(textarea);
+}
+
+function escapeHtml(unsafe) {
+    if (unsafe == null) return '';
+    if (typeof unsafe !== 'string') {
+        try { unsafe = JSON.stringify(unsafe, null, 2); }
+        catch { unsafe = String(unsafe); }
+    }
+    return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+function showToast(message, type = 'success') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.innerHTML = `
+        <svg class="h-5 w-5 mr-3 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+            ${type === 'success' 
+                ? '<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" />' 
+                : '<path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />'
+            }
+        </svg>
+        <span>${message}</span>
+    `;
+    container.appendChild(toast);
+    setTimeout(() => {
+        toast.remove();
+    }, 5000);
+}
+
+// --- LÓGICA PARA UPLOAD NA BASE DE CONHECIMENTO ---
+const knowledgeFileInput = document.getElementById('knowledgeFileInput');
+const knowledgeUploadButton = document.getElementById('uploadKnowledgeButton');
+const knowledgeStatusMessage = document.getElementById('knowledgeStatusMessage');
+const GENERATE_URL_ENDPOINT = '/api/generateUploadUrl'; 
+
+knowledgeUploadButton.addEventListener('click', async () => {
+    const file = knowledgeFileInput.files[0];
+    if (!file) {
+        knowledgeStatusMessage.textContent = 'Por favor, selecione um arquivo primeiro.';
+        knowledgeStatusMessage.className = 'mt-3 text-sm text-red-400';
+        return;
+    }
+
+    const user = firebase.auth().currentUser;
+    if (!user) {
+        knowledgeStatusMessage.textContent = 'Você precisa estar logado para fazer o upload.';
+        knowledgeStatusMessage.className = 'mt-3 text-sm text-red-400';
+        return;
+    }
+
+    knowledgeStatusMessage.textContent = 'Preparando o upload...';
+    knowledgeStatusMessage.className = 'mt-3 text-sm text-gray-400 animate-pulse';
+    knowledgeUploadButton.disabled = true;
+
+    try {
+        const idToken = await user.getIdToken();
+
+        const response = await fetch(GENERATE_URL_ENDPOINT, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${idToken}`
+            },
+            body: JSON.stringify({
+                fileName: file.name,
+                contentType: file.type || 'application/octet-stream'
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(`Falha ao obter URL de upload: ${errorData.message || response.statusText}`);
+        }
+
+        const { signedUrl } = await response.json();
+
+        knowledgeStatusMessage.textContent = 'Enviando arquivo... (Isso pode levar um momento)';
+        const uploadResponse = await fetch(signedUrl, {
+            method: 'PUT',
+            headers: { 'Content-Type': file.type || 'application/octet-stream' },
+            body: file
+        });
+
+        if (uploadResponse.ok) {
+            knowledgeStatusMessage.textContent = 'Upload concluído com sucesso! O processamento no backend foi iniciado.';
+            knowledgeStatusMessage.className = 'mt-3 text-sm text-green-400';
+            knowledgeFileInput.value = '';
+        } else {
+            throw new Error(`Falha no upload para o bucket: ${uploadResponse.status} ${uploadResponse.statusText}`);
+        }
+
+    } catch (error) {
+        console.error('Erro no processo de upload:', error);
+        knowledgeStatusMessage.textContent = `Erro: ${error.message}`;
+        knowledgeStatusMessage.className = 'mt-3 text-sm text-red-400';
+    } finally {
+        knowledgeUploadButton.disabled = false;
+        knowledgeStatusMessage.classList.remove('animate-pulse');
+    }
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "outDir": "lib",
+    "sourceMap": true,
+    "strict": true,
+    "target": "es2021",
+    "lib": [
+      "es2021", // Certifique-se de que esta linha (ou "esnext") está presente
+      "dom"     // 'dom' é geralmente útil mesmo em backend para certos tipos, mas pode ser omitido se tiver certeza de que não é usado
+    ],
+    "esModuleInterop": true,
+    "resolveJsonModule": true // você provavelmente já tem essa, é bom ter também
+  },
+  "compileOnSave": true,
+  "include": [
+    "src" // Ou o diretório onde seus arquivos .ts estão
+  ]
+}

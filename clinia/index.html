@@ -1,0 +1,967 @@
+<!DOCTYPE html>
+<html lang="pt-br" class="h-full bg-gray-50">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clínica IA - Triagem</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@700&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <!-- IONICONS -->
+    <link href="https://unpkg.com/ionicons@4.5.10-0/dist/css/ionicons.min.css" rel="stylesheet">
+
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        h1, h2, h3 { font-family: 'Quicksand', sans-serif; font-weight: 700; }
+        .brand-gradient { background: linear-gradient(to right, #0E7490, #10B981); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+        .card-hover-effect:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); }
+        .card-hover-effect { transition: all 0.2s ease-in-out; }
+        :root { --color-primary-teal: #0E7490; --color-secondary-green: #10B981; }
+        .text-primary-teal { color: var(--color-primary-teal); }
+        .bg-primary-teal { background-color: var(--color-primary-teal); }
+        .border-primary-teal { border-color: var(--color-primary-teal); }
+        .modal-backdrop { position: fixed; inset: 0; background-color: rgba(0, 0, 0, 0.5); display: flex; align-items: center; justify-content: center; z-index: 100; opacity: 0; transition: opacity 0.3s ease; pointer-events: none; }
+        .modal-backdrop.visible { opacity: 1; pointer-events: auto; }
+        .modal-content { background: white; border-radius: 0.75rem; padding: 1.5rem; width: 90%; max-width: 48rem; max-height: 90vh; overflow-y: auto; transform: scale(0.95); transition: transform 0.3s ease; }
+        .modal-backdrop.visible .modal-content { transform: scale(1); }
+        .modal-close-btn { position: absolute; top: 0.75rem; right: 0.75rem; color: #9ca3af; cursor: pointer; }
+        .modal-close-btn:hover { color: #1f2937; }
+        .icon { font-size: 1.5rem; line-height: 1; vertical-align: middle; }
+        
+        /* Estilos do Chat */
+        .chat-bubble {
+            padding: 0.75rem 1rem;
+            border-radius: 0.75rem;
+            max-width: 80%;
+            word-wrap: break-word;
+        }
+        .chat-bubble.user {
+            background-color: var(--color-primary-teal);
+            color: white;
+            border-bottom-right-radius: 0.25rem;
+            align-self: flex-end;
+        }
+        .chat-bubble.ia {
+            background-color: #f3f4f6;
+            color: #1f2937;
+            border: 1px solid #e5e7eb;
+            border-bottom-left-radius: 0.25rem;
+            align-self: flex-start;
+        }
+        .prose-ia h3 {
+            font-family: 'Quicksand', sans-serif;
+            color: var(--color-primary-teal);
+            font-size: 1.1rem;
+            margin-top: 0.75rem;
+            margin-bottom: 0.25rem;
+        }
+        .prose-ia ul {
+            list-style-type: disc;
+            padding-left: 1.25rem;
+            margin-top: 0.5rem;
+        }
+        .prose-ia strong {
+            color: var(--color-secondary-green);
+        }
+        .prose-ia .citation {
+            font-size: 0.75rem;
+            color: #6b7280;
+            margin-top: 0.75rem;
+            border-top: 1px dashed #d1d5db;
+            padding-top: 0.5rem;
+        }
+    </style>
+</head>
+<body class="h-full antialiased">
+    
+    <!-- Login Screen -->
+    <div id="login-section" class="min-h-screen flex items-center justify-center p-4">
+        <div class="max-w-md w-full bg-white p-8 rounded-lg shadow-lg">
+            <div class="flex items-center justify-center mb-6">
+                <!-- Ícone Médico (Estetoscópio) -->
+                <svg class="w-10 h-10 mr-2 text-primary-teal" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 0 0 6 16.5h12M3.75 3h16.5M3.75 3v-1.5A2.25 2.25 0 0 0 1.5 3.75v16.5A2.25 2.25 0 0 0 3.75 22.5h16.5A2.25 2.25 0 0 0 22.5 20.25v-1.5M13.5 6.75l-3 3m0 0-3-3m3 3v6.75m0-6.75h3.75m-3.75 0H6.75m6.75 6.75v3.75m0-3.75h3.75m-3.75 0H6.75m6.75 3.75v3.75m0-3.75h3.75m-3.75 0H6.75m9-1.5l3 3m0 0 3-3m-3 3v-6.75m0 6.75h-3.75m3.75 0h3.75m-3.75 0v-3.75m0 3.75h-3.75m3.75 0h3.75m-3.75 0v-3.75m0 3.75h-3.75m3.75 0h3.75" />
+                </svg>
+                <h1 class="text-3xl font-bold brand-gradient">Clínica IA</h1>
+            </div>
+            <h2 class="text-2xl font-bold text-gray-800 text-center mb-6">Acesse sua conta</h2>
+            <form id="login-form" class="space-y-4">
+                <div>
+                    <label for="email" class="block text-sm font-medium text-gray-700">Email</label>
+                    <input type="email" id="email" name="email" required autocomplete="username"
+                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-teal-500 focus:border-teal-500 sm:text-sm">
+                </div>
+                <div>
+                    <label for="password" class="block text-sm font-medium text-gray-700">Senha</label>
+                    <input type="password" id="password" name="password" required autocomplete="current-password"
+                           class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-teal-500 focus:border-teal-500 sm:text-sm">
+                </div>
+                <button type="submit"
+                        class="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-teal-600 hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-teal-500">
+                    Entrar
+                </button>
+            </form>
+            <div class="mt-6">
+                <div class="relative">
+                    <div class="absolute inset-0 flex items-center">
+                        <div class="w-full border-t border-gray-300"></div>
+                    </div>
+                    <div class="relative flex justify-center text-sm">
+                        <span class="px-2 bg-white text-gray-500">Ou continue com</span>
+                    </div>
+                </div>
+                <div class="mt-6">
+                    <button id="google-login-btn"
+                            class="w-full flex items-center justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                        <svg class="w-5 h-5 mr-2" aria-hidden="true" fill="currentColor" viewBox="0 0 24 24">
+                            <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
+                            <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
+                            <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z" fill="#FBBC05"/>
+                            <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
+                        </svg>
+                        Entrar com Google
+                    </button>
+                </div>
+            </div>
+            <p id="error-message" class="text-red-500 text-sm text-center mt-4"></p>
+        </div>
+    </div>
+
+    <!-- Main App Screen -->
+    <div id="app-section" class="hidden min-h-screen flex flex-col">
+        <!-- Header -->
+        <header class="bg-white shadow-sm py-4 px-6 flex items-center justify-between z-10">
+            <div class="flex items-center">
+                <svg class="w-8 h-8 mr-2 text-primary-teal" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 0 0 6 16.5h12M3.75 3h16.5M3.75 3v-1.5A2.25 2.25 0 0 0 1.5 3.75v16.5A2.25 2.25 0 0 0 3.75 22.5h16.5A2.25 2.25 0 0 0 22.5 20.25v-1.5M13.5 6.75l-3 3m0 0-3-3m3 3v6.75m0-6.75h3.75m-3.75 0H6.75m6.75 6.75v3.75m0-3.75h3.75m-3.75 0H6.75m6.75 3.75v3.75m0-3.75h3.75m-3.75 0H6.75m9-1.5l3 3m0 0 3-3m-3 3v-6.75m0 6.75h-3.75m3.75 0h3.75m-3.75 0v-3.75m0 3.75h-3.75m3.75 0h3.75m-3.75 0v-3.75m0 3.75h-3.75m3.75 0h3.75" />
+                </svg>
+                <h1 class="text-2xl font-bold brand-gradient">Clínica IA</h1>
+            </div>
+            <div class="flex items-center">
+                <span id="user-email-display" class="text-gray-700 mr-4 font-medium"></span>
+                <button id="logout-btn" class="text-gray-500 hover:text-gray-700 transition-colors">
+                    <i class="icon ion-md-log-out"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Main Content Area -->
+        <main class="flex-grow flex flex-col lg:flex-row bg-gray-100">
+            <!-- Sidebar / Tabs -->
+            <nav class="bg-white p-4 shadow-md lg:w-64 flex lg:flex-col justify-around lg:justify-start border-b lg:border-r border-gray-200">
+                <button id="triagem-tab" class="tab-button active flex items-center p-3 text-gray-700 hover:bg-gray-100 rounded-lg text-left transition-colors font-medium">
+                    <i class="icon ion-md-chatbubbles mr-3"></i> Nova Triagem
+                </button>
+                <button id="historico-tab" class="tab-button flex items-center p-3 text-gray-700 hover:bg-gray-100 rounded-lg text-left transition-colors font-medium mt-1">
+                    <i class="icon ion-md-list-box mr-3"></i> Histórico
+                </button>
+                <button id="protocolos-tab" class="tab-button flex items-center p-3 text-gray-700 hover:bg-gray-100 rounded-lg text-left transition-colors font-medium mt-1">
+                    <i class="icon ion-md-book mr-3"></i> Protocolos
+                </button>
+            </nav>
+
+            <!-- Content Panel -->
+            <div class="flex-grow p-6 overflow-y-auto">
+                
+                <!-- Nova Triagem Section (Chat) -->
+                <section id="triagem-section" class="tab-content flex flex-col" style="height: calc(100vh - 150px);"> <!-- Altura ajustada -->
+                    <h2 class="text-3xl font-bold text-gray-800 mb-4 flex-shrink-0">Nova Triagem</h2>
+                    
+                    <!-- Chat Container -->
+                    <div id="chat-container" class="flex-grow bg-white border border-gray-200 rounded-lg p-4 space-y-4 overflow-y-auto mb-4">
+                        <!-- Mensagem inicial da IA -->
+                        <div class="chat-bubble ia">
+                            <p>Olá, Dr(a). Por favor, insira os sintomas, sinais vitais e tempo de início para a triagem (ex: "Febre alta, dor no corpo, 3 dias").</p>
+                        </div>
+                        <!-- Mensagens do chat serão injetadas aqui -->
+                    </div>
+
+                    <!-- Chat Input Form -->
+                    <form id="chat-form" class="flex-shrink-0 flex gap-4 items-start">
+                        <textarea id="chat-input" placeholder="Descreva os sintomas do paciente..." class="flex-grow px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-teal-500 focus:border-teal-500 resize-none" rows="2"></textarea>
+                        <button id="chat-send-btn" type="submit" class="bg-teal-600 text-white px-5 py-2 rounded-lg hover:bg-teal-700 transition-colors flex items-center justify-center self-stretch">
+                            <i class="icon ion-md-send"></i>
+                        </button>
+                    </form>
+                </section>
+
+                <!-- Histórico Section -->
+                <section id="historico-section" class="tab-content hidden">
+                    <h2 class="text-3xl font-bold text-gray-800 mb-6">Histórico de Triagens</h2>
+
+                    <!-- Search/Filter Controls for Historico -->
+                    <div class="bg-white rounded-xl shadow-md p-4 mb-6 flex flex-col sm:flex-row gap-4 items-center">
+                        <input type="text" id="historico-search-input" placeholder="Buscar por paciente ou sintoma..." class="flex-grow px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-teal-500 focus:border-teal-500">
+                        <select id="historico-status-select" class="w-full sm:w-auto px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-teal-500 focus:border-teal-500 bg-white">
+                            <option value="">Todos Status</option>
+                            <option value="PENDENTE">Pendente</option>
+                            <option value="CONFIRMADO">Confirmado</option>
+                            <option value="DESCARTADO">Descartado</option>
+                        </select>
+                        <button id="historico-search-btn" class="w-full sm:w-auto bg-teal-600 text-white px-5 py-2 rounded-lg hover:bg-teal-700 transition-colors flex items-center justify-center">
+                            <i class="icon ion-md-search mr-1"></i> Buscar
+                        </button>
+                    </div>
+
+                    <div id="historico-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        <p class="text-gray-500 col-span-full">Carregando histórico...</p>
+                    </div>
+                    <div class="mt-8 text-center">
+                        <button id="historico-load-more-btn" class="hidden bg-white text-teal-700 px-6 py-3 rounded-lg border border-teal-600 font-semibold hover:bg-teal-50 transition-colors">
+                            Carregar Mais
+                        </button>
+                    </div>
+                </section>
+
+
+                <!-- Protocolos e Alertas Section -->
+                <section id="protocolos-section" class="tab-content hidden">
+                    <h2 class="text-3xl font-bold text-gray-800 mb-6">Protocolos e Alertas</h2>
+                    
+                    <!-- Alertas Customizados -->
+                    <div class="bg-white rounded-xl shadow-md p-6 mb-6">
+                        <h3 class="text-xl font-semibold text-gray-800 mb-4">Seus Alertas Customizados</h3>
+                        <p class="text-sm text-gray-600 mb-4">Crie alertas para combinações de sintomas que a IA deve destacar (ex: "gestante com febre").</p>
+                        <div id="alerts-container" class="flex flex-wrap gap-2 mb-6 min-h-[40px] items-center">
+                            <p class="text-gray-500 text-sm">Nenhum alerta customizado.</p>
+                        </div>
+                        <div class="flex gap-2">
+                            <input type="text" id="new-alert-input" placeholder="Adicionar novo alerta..." class="flex-grow px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-teal-500 focus:border-teal-500">
+                            <button id="add-alert-btn" class="bg-teal-600 text-white px-5 py-2 rounded-lg hover:bg-teal-700 transition-colors flex items-center">
+                                <i class="icon ion-md-add mr-1"></i> Adicionar
+                            </button>
+                        </div>
+                        <p id="config-message" class="mt-4 text-sm text-gray-600"></p>
+                    </div>
+
+                    <!-- Protocolos Carregados -->
+                    <div class="bg-white rounded-xl shadow-md p-6">
+                        <h3 class="text-xl font-semibold text-gray-800 mb-4">Protocolos na Base de Conhecimento</h3>
+                        <p class="text-sm text-gray-600 mb-4">Estes são os documentos (globais e da sua clínica) que a IA usa para gerar as respostas.</p>
+                        <div id="protocolos-list" class="space-y-2">
+                            <p class="text-gray-500 text-sm">Carregando protocolos...</p>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <!-- Modal para Detalhes da Triagem -->
+    <div id="details-modal" class="modal-backdrop">
+        <div class="modal-content relative">
+            <i class="icon ion-md-close modal-close-btn text-3xl" onclick="closeDetailsModal()"></i>
+            <div id="modal-body"></div>
+        </div>
+    </div>
+
+    <script>
+        // --- 0. CONFIGURAÇÃO DO FIREBASE ---
+        const firebaseConfig = {
+            apiKey: "AIzaSyA43C0ZrG7F_hUdue0-uG24WPgLkQkNQc0",
+            authDomain: "sharp-footing-475513-c7.firebaseapp.com",
+            projectId: "sharp-footing-475513-c7",
+            storageBucket: "sharp-footing-475513-c7.appspot.com",
+            messagingSenderId: "995790591545",
+            appId: "1:995790591545:web:9e369cc92784ddc7b85fe8"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const provider = new firebase.auth.GoogleAuthProvider();
+
+        // --- 0.1. CAPTURA GLOBAL DE ERROS ---
+        // (Lógica de logErrorFrontend permanece a mesma do LiciAI)
+        
+        // --- 1. ESTADO GLOBAL DA APLICAÇÃO ---
+        const API_BASE_URL = 'https://us-east1.sharp-footing-475513-c7.cloudfunctions.net/api';
+        
+        // URLs da API para o CRM Médico
+        const API_URL_NOVA_TRIAGEM = `${API_BASE_URL}/novaTriagem`;
+        const API_URL_CONFIRMAR_TRIAGEM = `${API_BASE_URL}/confirmarTriagem`;
+        const API_URL_HISTORICO = `${API_BASE_URL}/getHistorico`;
+        const API_URL_DETALHES_TRIAGEM = `${API_BASE_URL}/getDetalhesTriagem`;
+        const API_URL_GET_ALERTAS = `${API_BASE_URL}/getAlertas`;
+        const API_URL_ADD_ALERTA = `${API_BASE_URL}/addAlerta`;
+        const API_URL_REMOVE_ALERTA = `${API_BASE_URL}/removeAlerta`;
+        const API_URL_GET_PROTOCOLOS = `${API_BASE_URL}/getProtocolos`;
+        const API_URL_LOG_ERROR = `${API_BASE_URL}/logError`;
+
+        const PAGE_SIZE = 21;
+
+        let appState = {
+            isLoggedIn: false,
+            userEmail: null,
+            uid: null,
+            activeTab: 'triagem', // Tab padrão
+            alertas: [],
+            historico: { items: [], nextOffset: 0 },
+            chatMessages: [
+                { 
+                    role: 'ia', 
+                    content: 'Olá, Dr(a). Por favor, insira os sintomas, sinais vitais e tempo de início para a triagem (ex: "Febre alta, dor no corpo, 3 dias").' 
+                }
+            ],
+            currentHistoricoSearchQuery: '',
+            currentHistoricoSearchStatus: '',
+        };
+
+        // --- 2. ELEMENTOS DA UI ---
+        const loginSection = document.getElementById('login-section');
+        const appSection = document.getElementById('app-section');
+        const loginForm = document.getElementById('login-form');
+        const emailInput = document.getElementById('email');
+        const passwordInput = document.getElementById('password');
+        const googleLoginBtn = document.getElementById('google-login-btn');
+        const errorMessageDisplay = document.getElementById('error-message');
+        const logoutBtn = document.getElementById('logout-btn');
+        const userEmailDisplay = document.getElementById('user-email-display');
+
+        // Tabs
+        const triagemTab = document.getElementById('triagem-tab');
+        const historicoTab = document.getElementById('historico-tab');
+        const protocolosTab = document.getElementById('protocolos-tab');
+
+        // Seções
+        const triagemSection = document.getElementById('triagem-section');
+        const historicoSection = document.getElementById('historico-section');
+        const protocolosSection = document.getElementById('protocolos-section');
+
+        // Chat (Triagem)
+        const chatContainer = document.getElementById('chat-container');
+        const chatForm = document.getElementById('chat-form');
+        const chatInput = document.getElementById('chat-input');
+        const chatSendBtn = document.getElementById('chat-send-btn');
+
+        // Histórico
+        const historicoList = document.getElementById('historico-list');
+        const historicoSearchInput = document.getElementById('historico-search-input');
+        const historicoStatusSelect = document.getElementById('historico-status-select');
+        const historicoSearchBtn = document.getElementById('historico-search-btn');
+        const historicoLoadMoreBtn = document.getElementById('historico-load-more-btn');
+        
+        // Protocolos e Alertas
+        const alertsContainer = document.getElementById('alerts-container');
+        const newAlertInput = document.getElementById('new-alert-input');
+        const addAlertBtn = document.getElementById('add-alert-btn');
+        const configMessage = document.getElementById('config-message');
+        const protocolosList = document.getElementById('protocolos-list');
+
+        // Modal
+        const detailsModal = document.getElementById('details-modal');
+        const modalBody = document.getElementById('modal-body');
+
+        // --- 3. LÓGICA DE AUTENTICAÇÃO ---
+        // (As funções signIn, signInWithGoogle, signOutUser permanecem IDÊNTICAS ao LiciAI)
+        async function signIn(email, password) {
+            try {
+                errorMessageDisplay.textContent = '';
+                await auth.signInWithEmailAndPassword(email, password);
+            } catch (error) {
+                console.error("Erro ao fazer login:", error);
+                errorMessageDisplay.textContent = 'Erro ao fazer login: ' + (error.message || 'Verifique suas credenciais.');
+            }
+        }
+
+        async function signInWithGoogle() {
+            try {
+                errorMessageDisplay.textContent = '';
+                await auth.signInWithPopup(provider);
+            } catch (error) {
+                console.error("Erro ao fazer login com Google:", error);
+                errorMessageDisplay.textContent = 'Erro ao fazer login com Google: ' + (error.message || 'Tente novamente.');
+            }
+        }
+
+        async function signOutUser() {
+            try {
+                await auth.signOut();
+            } catch (error) {
+                console.error("Erro ao fazer logout:", error);
+                alert("Erro ao fazer logout.");
+            }
+        }
+
+        // --- 4. FUNÇÕES DE DADOS (API) ---
+
+        // (logErrorFrontend permanece IDÊNTICA)
+        async function logErrorFrontend(error, componente = 'global', contextoAdicional = {}) {
+            try {
+                if (!error || typeof error.message === 'undefined') {
+                    console.warn("Tentativa de log de erro inválido ignorada.", error);
+                    return;
+                }
+                const user = auth.currentUser;
+                const token = user ? await user.getIdToken() : null;
+                const payload = {
+                    ambiente: 'frontend',
+                    funcao_ou_componente: componente,
+                    mensagem: error.message,
+                    stack_trace: error.stack || 'Stack trace não disponível',
+                    contexto: {
+                        url: window.location.href,
+                        userAgent: navigator.userAgent,
+                        ...contextoAdicional
+                    }
+                };
+                fetch(API_URL_LOG_ERROR, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(token && { 'Authorization': `Bearer ${token}` })
+                    },
+                    body: JSON.stringify(payload),
+                    keepalive: true
+                }).catch(e => console.error('Falha ao enviar log de erro para o backend:', e));
+            } catch (e) {
+                console.error('Falha CRÍTICA no próprio logger do frontend:', e);
+            }
+        }
+        
+        // (fetchAuthenticated permanece IDÊNTICA)
+        async function fetchAuthenticated(url, method = 'GET', body = null) {
+            const user = auth.currentUser;
+            if (!user) {
+                const authError = new Error("Usuário não autenticado.");
+                logErrorFrontend(authError, 'fetchAuthenticated');
+                throw authError;
+            }
+            const token = await user.getIdToken();
+            const headers = {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json'
+            };
+            const options = { method, headers, body: body ? JSON.stringify(body) : null };
+            const response = await fetch(url, options);
+            if (!response.ok) {
+                const errorData = await response.json().catch(() => ({}));
+                throw new Error(errorData.message || `Erro HTTP: ${response.status}`);
+            }
+            return response.json();
+        }
+
+        // Função de Chat (NOVA)
+        async function sendChatMessage(prompt) {
+            try {
+                // Adiciona a mensagem do usuário à UI
+                appState.chatMessages.push({ role: 'user', content: prompt });
+                renderChat();
+                chatInput.value = '';
+                chatSendBtn.disabled = true;
+
+                // Adiciona um placeholder de "pensando"
+                appState.chatMessages.push({ role: 'ia', content: 'Analisando...', isLoading: true });
+                renderChat();
+
+                // Chama a API
+                const data = await fetchAuthenticated(API_URL_NOVA_TRIAGEM, 'POST', { prompt: prompt });
+                
+                // Remove o placeholder e adiciona a resposta real da IA
+                appState.chatMessages.pop();
+                appState.chatMessages.push({ role: 'ia', content: data.resposta_ia, triagemId: data.triagem_id });
+                renderChat();
+
+            } catch (error) {
+                console.error("Erro ao enviar mensagem de triagem:", error);
+                logErrorFrontend(error, 'sendChatMessage');
+                // Remove o placeholder e adiciona uma mensagem de erro
+                appState.chatMessages.pop();
+                appState.chatMessages.push({ role: 'ia', content: `Houve um erro ao processar sua solicitação: ${error.message}` });
+                renderChat();
+            } finally {
+                chatSendBtn.disabled = false;
+                chatInput.focus();
+            }
+        }
+
+        // Buscar Histórico (Adaptada de getRankingOportunidades)
+        async function getHistorico(isLoadMore = false) {
+            try {
+                let offset = 0;
+                if (isLoadMore) {
+                    offset = appState.historico.nextOffset;
+                } else {
+                    historicoList.innerHTML = '<p class="text-gray-500 col-span-full">Carregando histórico...</p>';
+                    appState.historico = { items: [], nextOffset: 0 };
+                }
+                
+                historicoLoadMoreBtn.classList.add('hidden');
+
+                const params = new URLSearchParams();
+                params.append('limit', PAGE_SIZE);
+                params.append('offset', offset);
+                if (appState.currentHistoricoSearchStatus) params.append('status', appState.currentHistoricoSearchStatus);
+                if (appState.currentHistoricoSearchQuery) params.append('q', appState.currentHistoricoSearchQuery);
+
+                const url = `${API_URL_HISTORICO}?${params.toString()}`;
+
+                const data = await fetchAuthenticated(url);
+                appState.historico.items.push(...(data.items || []));
+                appState.historico.nextOffset = data.nextOffset;
+
+                renderHistorico();
+            } catch (error) {
+                console.error("Erro ao buscar histórico:", error);
+                logErrorFrontend(error, 'getHistorico');
+                historicoList.innerHTML = `<p class="text-red-600 col-span-full">Erro ao carregar o histórico. Nossa equipe já foi notificada.</p>`;
+            }
+        }
+
+        // Buscar Alertas (Adaptada de getClienteConfigs)
+        async function getAlertas() {
+            try {
+                configMessage.textContent = '';
+                const data = await fetchAuthenticated(API_URL_GET_ALERTAS);
+                appState.alertas = data.alertas || [];
+                renderAlertas();
+            } catch (error) {
+                console.error("Erro ao buscar alertas:", error);
+                logErrorFrontend(error, 'getAlertas');
+                configMessage.textContent = `Erro ao carregar alertas.`;
+                configMessage.classList.add('text-red-600');
+            }
+        }
+        
+        // Buscar Protocolos (NOVA)
+        async function getProtocolos() {
+            try {
+                protocolosList.innerHTML = '<p class="text-gray-500 text-sm">Carregando protocolos...</p>';
+                const data = await fetchAuthenticated(API_URL_GET_PROTOCOLOS);
+                renderProtocolos(data.protocolos || []);
+            } catch (error) {
+                console.error("Erro ao buscar protocolos:", error);
+                logErrorFrontend(error, 'getProtocolos');
+                protocolosList.innerHTML = '<p class="text-red-600 text-sm">Erro ao carregar protocolos.</p>';
+            }
+        }
+
+        // Adicionar Alerta (Adaptada de addKeyword)
+        async function addAlerta(textoAlerta) {
+            try {
+                configMessage.textContent = 'Adicionando alerta...';
+                configMessage.classList.remove('text-red-600', 'text-green-600');
+                await fetchAuthenticated(API_URL_ADD_ALERTA, 'POST', { textoAlerta: textoAlerta });
+                newAlertInput.value = '';
+                configMessage.textContent = 'Alerta adicionado com sucesso!';
+                configMessage.classList.add('text-green-600');
+                await getAlertas();
+            } catch (error) {
+                console.error("Erro ao adicionar alerta:", error);
+                configMessage.textContent = `Erro ao adicionar alerta: ${error.message}`;
+                configMessage.classList.add('text-red-600');
+            }
+        }
+
+        // Remover Alerta (Adaptada de removeKeyword)
+        async function removeAlerta(alertaId) {
+            try {
+                configMessage.textContent = 'Removendo alerta...';
+                configMessage.classList.remove('text-red-600', 'text-green-600');
+                await fetchAuthenticated(API_URL_REMOVE_ALERTA, 'POST', { alertaId: alertaId }); // Assumindo que a API espera alertaId
+                configMessage.textContent = 'Alerta removido com sucesso!';
+                configMessage.classList.add('text-green-600');
+                await getAlertas();
+            } catch (error) {
+                console.error("Erro ao remover alerta:", error);
+                configMessage.textContent = `Erro ao remover alerta: ${error.message}`;
+                configMessage.classList.add('text-red-600');
+            }
+        }
+
+        // --- 5. FUNÇÕES DE RENDERIZAÇÃO E UX ---
+        // (formatCurrency e formatDate permanecem IDÊNTICAS)
+        function formatCurrency(v) {
+            if (v === null || v === undefined) return 'Não informado';
+            if (typeof v === 'string') v = parseFloat(v.replace('.', '').replace(',', '.'));
+            if (isNaN(v)) return 'Não informado';
+            return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return 'Não informado';
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) return 'Data inválida';
+            // Simplificado para o histórico
+            return date.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+        }
+        
+        // Render Chat (NOVA)
+        function renderChat() {
+            chatContainer.innerHTML = '';
+            appState.chatMessages.forEach(msg => {
+                const bubble = document.createElement('div');
+                bubble.className = `chat-bubble ${msg.role}`;
+
+                if (msg.isLoading) {
+                    bubble.innerHTML = '<div class="animate-pulse">Analisando...</div>';
+                } else if (msg.role === 'ia' && typeof msg.content === 'object') {
+                    // Resposta estruturada da IA
+                    const r = msg.content;
+                    bubble.classList.add('prose-ia');
+                    bubble.innerHTML = `
+                        ${r.explicacao || 'Não foi possível gerar uma explicação.'}
+                        
+                        ${r.hipoteses && r.hipoteses.length > 0 ? `
+                        <h3>Hipóteses Prováveis</h3>
+                        <ul>
+                            ${r.hipoteses.map(h => `<li><strong>${h.label} (${(h.probability * 100).toFixed(0)}%):</strong> ${h.rationale}</li>`).join('')}
+                        </ul>
+                        ` : ''}
+
+                        ${r.sinais_alarme && r.sinais_alarme.length > 0 ? `
+                        <h3 class="text-red-600">Sinais de Alarme Detectados!</h3>
+                        <ul>
+                            ${r.sinais_alarme.map(s => `<li>${s}</li>`).join('')}
+                        </ul>
+                        ` : ''}
+
+                        <div class="citation">
+                            Fontes: ${r.citacoes && r.citacoes.length > 0 ? r.citacoes.map(c => c.source_id || 'Protocolo interno').join(', ') : 'Base de conhecimento interna.'}
+                        </div>
+                    `;
+                } else {
+                    // Mensagem de texto simples (usuário ou erro)
+                    bubble.textContent = msg.content;
+                }
+                chatContainer.appendChild(bubble);
+            });
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+
+        // Card do Histórico (NOVA)
+        function createEncounterCard(data) {
+            const statusColors = {
+                'PENDENTE': 'bg-yellow-100 text-yellow-800 border-yellow-200',
+                'CONFIRMADO': 'bg-green-100 text-green-800 border-green-200',
+                'DESCARTADO': 'bg-red-100 text-red-800 border-red-200',
+            };
+            const statusColor = statusColors[data.status] || 'bg-gray-100 text-gray-800 border-gray-200';
+            
+            // Tenta pegar a primeira hipótese da IA para exibir
+            let iaHipotese = "N/A";
+            if(data.resposta_ia && data.resposta_ia.hipoteses && data.resposta_ia.hipoteses.length > 0) {
+                iaHipotese = data.resposta_ia.hipoteses[0].label;
+            }
+
+            return `<div class="bg-white border border-gray-200 rounded-xl p-5 card-hover-effect">
+                <div class="flex justify-between items-start">
+                    <div class="flex-grow pr-4">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusColor}">${data.status}</span>
+                        <h2 class="text-lg font-semibold text-gray-800 line-clamp-1 mt-2" title="Paciente ${data.paciente_id_anonimizado || 'N/A'}">Paciente: ${data.paciente_id_anonimizado || 'ID N/A'}</h2>
+                        <p class="text-sm text-gray-600 mt-1">Hipótese IA: <strong>${iaHipotese}</strong></p>
+                    </div>
+                    <button onclick="openDetailsModal('${data.triagem_id}')" class="flex-shrink-0 text-sm font-semibold text-primary-teal hover:opacity-80">Detalhes</button>
+                </div>
+                <div class="mt-4 pt-4 border-t border-gray-200">
+                    <p class="text-sm text-gray-700"><span class="text-gray-500">Data:</span> <strong class="ml-1">${formatDate(data.data_triagem)}</strong></p>
+                </div>
+            </div>`;
+        }
+        
+        // Renderizar Histórico (Adaptada de renderRanking)
+        function renderHistorico() {
+            if (appState.historico.items.length === 0) {
+                historicoList.innerHTML = '<p class="text-gray-500 col-span-full">Nenhuma triagem encontrada no histórico.</p>';
+                historicoLoadMoreBtn.classList.add('hidden');
+                return;
+            }
+            historicoList.innerHTML = appState.historico.items.map(item => createEncounterCard(item)).join('');
+
+            if (appState.historico.nextOffset !== null) {
+                historicoLoadMoreBtn.classList.remove('hidden');
+            } else {
+                historicoLoadMoreBtn.classList.add('hidden');
+            }
+        }
+
+        // Render Alertas (Adaptada de renderKeywords)
+        function renderAlertas() {
+            alertsContainer.innerHTML = '';
+            if (appState.alertas.length === 0) {
+                alertsContainer.innerHTML = '<p class="text-gray-500 text-sm">Nenhum alerta customizado.</p>';
+                return;
+            }
+            appState.alertas.forEach(alerta => {
+                const span = document.createElement('span');
+                span.className = 'inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-teal-100 text-teal-800';
+                span.innerHTML = `${alerta.texto_alerta} <button data-alerta-id="${alerta.alerta_id}" class="ml-2 -mr-0.5 h-4 w-4 text-teal-600 hover:text-teal-900 remove-alert-btn"><ion-icon name="close-circle"></ion-icon></button>`;
+                alertsContainer.appendChild(span);
+            });
+        }
+
+        // Render Protocolos (NOVA)
+        function renderProtocolos(protocolos) {
+            if (protocolos.length === 0) {
+                protocolosList.innerHTML = '<p class="text-gray-500 text-sm">Nenhum protocolo carregado na base.</p>';
+                return;
+            }
+            protocolosList.innerHTML = protocolos.map(proto => `
+                <div class="flex items-center justify-between p-2 bg-gray-50 rounded-md border border-gray-200">
+                    <span class="flex items-center text-sm text-gray-700">
+                        <i class="icon ion-md-document mr-2 text-primary-teal"></i>
+                        ${proto.source_id}
+                    </span>
+                    <span class="text-xs font-medium ${proto.tenant_id === 'GLOBAL' ? 'text-green-600' : 'text-blue-600'}">
+                        ${proto.tenant_id === 'GLOBAL' ? 'Global' : 'Clínica'}
+                    </span>
+                </div>
+            `).join('');
+        }
+
+        // Abrir Modal (Adaptada)
+        async function openDetailsModal(triagemId) {
+            modalBody.innerHTML = '<p class="text-center text-gray-500">Carregando detalhes...</p>';
+            detailsModal.classList.add('visible');
+            try {
+                const url = `${API_URL_DETALHES_TRIAGEM}?id=${encodeURIComponent(triagemId)}`;
+                const data = await fetchAuthenticated(url);
+                
+                const ia = data.resposta_ia || {};
+                
+                modalBody.innerHTML = `
+                    <h2 class="text-2xl font-bold text-gray-800 mb-2">Detalhes da Triagem</h2>
+                    <p class="text-sm text-gray-500 mb-4">ID: ${data.triagem_id}</p>
+                    <div class="space-y-4 text-gray-700">
+                        <div>
+                            <h3 class="font-semibold text-gray-900">Prompt do Médico (Sintomas)</h3>
+                            <p class="p-2 bg-gray-50 rounded border border-gray-200 mt-1">${data.prompt_medico || 'N/A'}</p>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-gray-900">Análise da IA</h3>
+                            <div class="p-3 bg-blue-50 rounded border border-blue-200 mt-1 prose-ia">
+                                ${ia.explicacao || 'N/A'}
+                                ${ia.hipoteses && ia.hipoteses.length > 0 ? `
+                                <h3>Hipóteses</h3>
+                                <ul>${ia.hipoteses.map(h => `<li><strong>${h.label} (${(h.probability * 100).toFixed(0)}%):</strong> ${h.rationale}</li>`).join('')}</ul>
+                                ` : ''}
+                                ${ia.sinais_alarme && ia.sinais_alarme.length > 0 ? `
+                                <h3 class="text-red-600">Sinais de Alarme</h3>
+                                <ul>${ia.sinais_alarme.map(s => `<li>${s}</li>`).join('')}</ul>
+                                ` : ''}
+                                <div class="citation">
+                                    Fontes: ${ia.citacoes && ia.citacoes.length > 0 ? ia.citacoes.map(c => c.source_id || 'Protocolo interno').join(', ') : 'Base de conhecimento interna.'}
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <h3 class="font-semibold text-gray-900">Status e Notas</h3>
+                            <p><strong>Status:</strong> ${data.status}</p>
+                            <p class="mt-1"><strong>Notas do Médico:</strong> ${data.notas_medico || 'Nenhuma nota.'}</p>
+                        </div>
+                        <!-- (Futuro) Adicionar formulário para confirmar/editar aqui -->
+                    </div>
+                `;
+            } catch (error) {
+                console.error("Erro ao buscar detalhes da triagem:", error);
+                logErrorFrontend(error, 'openDetailsModal', { triagemId: triagemId });
+                modalBody.innerHTML = `<p class="text-red-600">Não foi possível carregar os detalhes.</p>`;
+            }
+        }
+
+        // (closeDetailsModal permanece IDÊNTICA)
+        function closeDetailsModal() {
+            detailsModal.classList.remove('visible');
+        }
+        
+        // (updateUrlFromState permanece IDÊNTICA na lógica, mas com novos valores)
+        function updateUrlFromState() {
+            const params = new URLSearchParams(window.location.search);
+            params.set('tab', appState.activeTab);
+
+            let q = '';
+            let status = '';
+
+            if (appState.activeTab === 'historico') {
+                q = appState.currentHistoricoSearchQuery;
+                status = appState.currentHistoricoSearchStatus;
+            }
+            
+            q ? params.set('q', q) : params.delete('q');
+            status ? params.set('status', status) : params.delete('status');
+            
+            window.history.pushState({}, '', `${window.location.pathname}?${params.toString()}`);
+        }
+
+        // (applyStateFromUrl permanece IDÊNTICA na lógica, mas com novos valores)
+        function applyStateFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            const tab = params.get('tab');
+            const q = params.get('q');
+            const status = params.get('status');
+
+            if (tab === 'triagem' || tab === 'historico' || tab === 'protocolos') {
+                appState.activeTab = tab;
+            }
+
+            if (q) {
+                historicoSearchInput.value = q;
+                appState.currentHistoricoSearchQuery = q;
+            }
+            if (status) {
+                historicoStatusSelect.value = status;
+                appState.currentHistoricoSearchStatus = status;
+            }
+        }
+
+
+        // --- 6. FUNÇÕES DE CONTROLE DE VIEW ---
+        function updateView() {
+            if (appState.isLoggedIn) {
+                loginSection.classList.add('hidden');
+                appSection.classList.remove('hidden');
+                userEmailDisplay.textContent = appState.userEmail;
+
+                document.querySelectorAll('.tab-button').forEach(btn => btn.classList.remove('bg-gray-200', 'text-primary-teal'));
+                document.querySelectorAll('.tab-content').forEach(content => content.classList.add('hidden'));
+
+                let currentTabButton, currentTabContent;
+                if (appState.activeTab === 'triagem') {
+                    currentTabButton = triagemTab;
+                    currentTabContent = triagemSection;
+                } else if (appState.activeTab === 'historico') {
+                    currentTabButton = historicoTab;
+                    currentTabContent = historicoSection;
+                } else if (appState.activeTab === 'protocolos') {
+                    currentTabButton = protocolosTab;
+                    currentTabContent = protocolosSection;
+                }
+
+                if (currentTabButton) {
+                    currentTabButton.classList.add('bg-gray-200', 'text-primary-teal');
+                    currentTabContent.classList.remove('hidden');
+                }
+                
+                fetchAndRenderData();
+
+            } else {
+                loginSection.classList.remove('hidden');
+                appSection.classList.add('hidden');
+                errorMessageDisplay.textContent = '';
+            }
+        }
+
+        async function fetchAndRenderData() {
+            if (!appState.isLoggedIn) return;
+
+            if (appState.activeTab === 'triagem') {
+                // O chat já tem seu estado, não precisa buscar dados ao trocar de aba
+                renderChat();
+            } else if (appState.activeTab === 'historico') {
+                await getHistorico();
+            } else if (appState.activeTab === 'protocolos') {
+                await getAlertas();
+                await getProtocolos();
+            }
+        }
+
+        // --- 7. EVENT LISTENERS ---
+        function setupEventListeners() {
+            // Login/Logout (IDÊNTICO)
+            loginForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                signIn(emailInput.value, passwordInput.value);
+            });
+            googleLoginBtn.addEventListener('click', signInWithGoogle);
+            logoutBtn.addEventListener('click', signOutUser);
+
+            // Troca de Abas (ADAPTADO)
+            triagemTab.addEventListener('click', () => {
+                appState.activeTab = 'triagem';
+                updateUrlFromState();
+                updateView();
+            });
+            historicoTab.addEventListener('click', () => {
+                appState.activeTab = 'historico';
+                updateUrlFromState();
+                updateView();
+            });
+            protocolosTab.addEventListener('click', () => {
+                appState.activeTab = 'protocolos';
+                updateUrlFromState();
+                updateView();
+            });
+
+            // Chat (NOVO)
+            chatForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const prompt = chatInput.value.trim();
+                if (prompt) {
+                    sendChatMessage(prompt);
+                }
+            });
+
+            // Alertas (ADAPTADO)
+            addAlertBtn.addEventListener('click', () => {
+                const newAlerta = newAlertInput.value.trim();
+                if (newAlerta) {
+                    addAlerta(newAlerta);
+                }
+            });
+            alertsContainer.addEventListener('click', (e) => {
+                const removeBtn = e.target.closest('.remove-alert-btn');
+                if (removeBtn) {
+                    const alertaIdToRemove = removeBtn.dataset.alertaId;
+                    if (alertaIdToRemove) {
+                        removeAlerta(alertaIdToRemove);
+                    }
+                }
+            });
+
+            // Histórico (ADAPTADO)
+            historicoLoadMoreBtn.addEventListener('click', () => getHistorico(true));
+            historicoSearchBtn.addEventListener('click', () => {
+                appState.currentHistoricoSearchQuery = historicoSearchInput.value.trim();
+                appState.currentHistoricoSearchStatus = historicoStatusSelect.value;
+                updateUrlFromState();
+                getHistorico(false);
+            });
+            historicoSearchInput.addEventListener('keyup', (e) => {
+                if (e.key === 'Enter') historicoSearchBtn.click();
+            });
+            historicoStatusSelect.addEventListener('change', () => {
+                historicoSearchBtn.click();
+            });
+
+            // Modal (IDÊNTICO)
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && detailsModal.classList.contains('visible')) {
+                    closeDetailsModal();
+                }
+            });
+            detailsModal.addEventListener('click', (e) => {
+                if (e.target === detailsModal) {
+                    closeDetailsModal();
+                }
+            });
+        }
+
+        // --- 8. INICIALIZAÇÃO DA APLICAÇÃO ---
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                appState.isLoggedIn = true;
+                appState.userEmail = user.email;
+                appState.uid = user.uid;
+            } else {
+                appState.isLoggedIn = false;
+                appState.userEmail = null;
+                appState.uid = null;
+            }
+            // Reseta o estado do chat ao deslogar
+            if (!user) {
+                appState.chatMessages = [{ role: 'ia', content: 'Olá, Dr(a). Por favor, insira os sintomas...' }];
+            }
+            updateView();
+        });
+
+        document.addEventListener('DOMContentLoaded', () => {
+            setupEventListeners();
+            // (Não precisa popular UF aqui, removemos)
+            applyStateFromUrl();
+        });
+
+    </script>
+</body>
+</html>

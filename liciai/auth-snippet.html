@@ -1,0 +1,74 @@
+<!-- 
+  ADICIONE ESTE CÓDIGO NO FINAL DO <body> em:
+  - /workspaces/jobsagent/liciai/public/index.html
+  - /workspaces/jobsagent/liciai/public/app.html
+  - /workspaces/jobsagent/liciai/public/errordash.html
+-->
+
+<script>
+// ========================================
+// AUTENTICAÇÃO CENTRALIZADA VIA HUBAMALIA
+// ========================================
+
+let hubUser = null;
+let hubToken = null;
+
+// Escutar mensagens do Hub
+window.addEventListener('message', async (event) => {
+  // Aceitar apenas do domínio do hub
+  if (event.origin !== 'https://hubamalia.web.app') {
+    console.warn('Mensagem de origem não autorizada:', event.origin);
+    return;
+  }
+
+  const data = event.data;
+  
+  if (data.type === 'HUB_AUTH') {
+    console.log('🔐 Token recebido do HubAmalia');
+    
+    hubToken = data.token;
+    hubUser = data.user;
+    
+    console.log('✅ Usuário autenticado:', hubUser.email);
+    
+    // Disparar evento customizado
+    window.dispatchEvent(new CustomEvent('hub-auth-ready', { 
+      detail: { user: hubUser, token: hubToken }
+    }));
+    
+    // Atualizar UI
+    updateUIWithUser(hubUser);
+  }
+});
+
+// Atualizar UI com dados do usuário
+function updateUIWithUser(user) {
+  // REMOVA ou esconda seus botões de login existentes
+  const loginButtons = document.querySelectorAll('[onclick*="login"], .login-btn, #loginBtn');
+  loginButtons.forEach(btn => btn.style.display = 'none');
+  
+  // Se sua app tem elementos para mostrar nome/avatar do usuário, atualize aqui
+  // Exemplo:
+  // document.getElementById('userName').textContent = user.displayName;
+  // document.getElementById('userEmail').textContent = user.email;
+}
+
+// Função para fazer requests autenticados na sua API
+async function fetchWithAuth(url, options = {}) {
+  if (!hubToken) {
+    throw new Error('Usuário não autenticado');
+  }
+  
+  const headers = {
+    ...options.headers,
+    'Authorization': `Bearer ${hubToken}`
+  };
+  
+  return fetch(url, { ...options, headers });
+}
+
+// Notificar hub que está pronto
+window.parent.postMessage({ type: 'APP_READY' }, 'https://hubamalia.web.app');
+
+console.log('🎯 LiciAI pronto para autenticação centralizada');
+</script>

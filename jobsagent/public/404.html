@@ -1,0 +1,275 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Amália - Agente de Empregos</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .card { transition: all 0.3s ease; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); }
+        .card:hover { transform: translateY(-5px) scale(1.02); box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); }
+        .fit-score {
+            font-weight: bold;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            height: 2rem;
+            width: 2rem;
+            border-radius: 50%;
+            color: white;
+            transition: background-color 0.3s ease;
+        }
+        .fit-score-9 { background-color: #22c55e; } /* green-500 */
+        .fit-score-8 { background-color: #f97316; } /* orange-500 */
+        .fit-score-7 { background-color: #f59e0b; } /* yellow-500 */
+        .fit-score-below-7 { background-color: #ef4444; } /* red-500 */
+
+        .modal { z-index: 1000; }
+        .modal-overlay { z-index: 999; }
+    </style>
+</head>
+<body class="p-8">
+    <div class="container mx-auto max-w-7xl">
+        <header class="flex flex-col md:flex-row items-center justify-between mb-12 bg-white p-6 rounded-lg shadow-md">
+            <div class="flex items-center mb-4 md:mb-0">
+                <i class="fas fa-robot mr-4 text-5xl text-indigo-600"></i>
+                <div>
+                    <h1 class="text-4xl font-extrabold text-gray-800 tracking-tight">Agente de Empregos</h1>
+                    <p class="text-gray-500 text-lg">Seu assistente pessoal de candidaturas. <i class="fas fa-briefcase ml-1"></i></p>
+                </div>
+            </div>
+            <div class="flex flex-col sm:flex-row gap-4">
+                <button id="open-settings-button" class="bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold py-3 px-8 rounded-full shadow-lg transition duration-300 transform hover:scale-105">
+                    <i class="fas fa-cog mr-2"></i> Configurações
+                </button>
+                <button id="run-agent-button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-8 rounded-full shadow-lg transition duration-300 transform hover:scale-105">
+                    <i class="fas fa-play mr-2"></i> Rodar Agente
+                </button>
+            </div>
+        </header>
+
+        <div id="job-list" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+            <!-- Vagas serão renderizadas aqui dinamicamente -->
+        </div>
+    </div>
+
+    <!-- Modal de Configuração -->
+    <div id="settings-modal" class="modal fixed inset-0 hidden overflow-y-auto">
+        <div class="modal-overlay fixed inset-0 bg-gray-900 bg-opacity-75 transition-opacity"></div>
+        <div class="modal-container fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-white p-6 md:p-8 rounded-xl shadow-2xl max-h-[90vh] overflow-y-auto w-11/12 md:w-3/4 lg:w-1/2">
+            <div class="modal-header flex justify-between items-center pb-4 border-b border-gray-200">
+                <h3 class="text-2xl font-bold text-gray-800">Configurações do Agente</h3>
+                <button id="close-modal-button" class="text-gray-400 hover:text-gray-600">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <div class="modal-body mt-4">
+                <form id="settings-form">
+                    <div class="mb-6">
+                        <label for="profile" class="block text-gray-700 text-sm font-bold mb-2">Seu Perfil Profissional</label>
+                        <textarea id="profile-input" name="profile" rows="8" class="shadow-sm appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"></textarea>
+                        <p class="text-xs text-gray-500 mt-1">Este texto é usado para a IA analisar o fit e criar os resumos dos currículos. Seja detalhado!</p>
+                    </div>
+                    <div class="mb-6">
+                        <label for="job-sites-input" class="block text-gray-700 text-sm font-bold mb-2">Sites de Vaga e Palavras-chave</label>
+                        <textarea id="job-sites-input" name="job_sites" rows="6" class="shadow-sm appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"></textarea>
+                        <p class="text-xs text-gray-500 mt-1">Insira um JSON no formato: `[{"name": "Empresa", "keywords": ["chave1", "chave2"]}]`</p>
+                    </div>
+                    <div class="mb-6 flex flex-col md:flex-row gap-4">
+                        <div class="md:w-1/2">
+                            <label for="email-input" class="block text-gray-700 text-sm font-bold mb-2">Email de Notificação</label>
+                            <input type="email" id="email-input" name="notif_email" class="shadow-sm appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                            <p class="text-xs text-gray-500 mt-1">Para onde o agente enviará os alertas.</p>
+                        </div>
+                        <div class="md:w-1/2">
+                            <label for="min-score-input" class="block text-gray-700 text-sm font-bold mb-2">Score Mínimo (1-10)</label>
+                            <input type="number" id="min-score-input" name="min_fit_score" min="1" max="10" class="shadow-sm appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent">
+                            <p class="text-xs text-gray-500 mt-1">O agente só processará vagas com esse fit ou superior.</p>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-end mt-8">
+                        <button type="button" id="save-settings-button" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-full transition duration-300 transform hover:scale-105">
+                            <i class="fas fa-save mr-2"></i> Salvar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
+        import { getFirestore, collection, query, orderBy, onSnapshot, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAKEdwGJFjAXyY3vQUMm0sCIvdSfs-WInw",
+            authDomain: "arquitetodadivulgacao.firebaseapp.com",
+            projectId: "arquitetodadivulgacao",
+            storageBucket: "arquitetodadivulgacao.firebasestorage.app",
+            messagingSenderId: "760851989407",
+            appId: "1:760851989407:web:76dbd699f18da6969473aa"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const jobsCollection = collection(db, "jobapplications");
+        const settingsDoc = doc(db, "user_settings", "config");
+        const jobList = document.getElementById('job-list');
+        const runButton = document.getElementById('run-agent-button');
+        const openSettingsButton = document.getElementById('open-settings-button');
+        const settingsModal = document.getElementById('settings-modal');
+        const closeModalButton = document.getElementById('close-modal-button');
+        const saveSettingsButton = document.getElementById('save-settings-button');
+        
+        const profileInput = document.getElementById('profile-input');
+        const jobSitesInput = document.getElementById('job-sites-input');
+        const emailInput = document.getElementById('email-input');
+        const minScoreInput = document.getElementById('min-score-input');
+        
+        const CLOUD_FUNCTION_URL = "https://jobagent-760851989407.us-central1.run.app";
+
+        function getFitColor(score) {
+            if (score >= 9) return 'fit-score-9';
+            if (score >= 8) return 'fit-score-8';
+            if (score >= 7) return 'fit-score-7';
+            return 'fit-score-below-7';
+        }
+
+        function renderJobs(jobs) {
+            jobList.innerHTML = '';
+            if (jobs.length === 0) {
+                jobList.innerHTML = '<p class="col-span-full text-center text-gray-500 text-lg py-12">Nenhuma vaga encontrada ainda. Clique em "Rodar Agente" para começar.</p>';
+                return;
+            }
+            jobs.forEach(job => {
+                const fitColorClass = getFitColor(job.fit_score);
+                const formattedDate = job.timestamp ? new Date(job.timestamp.seconds * 1000).toLocaleString('pt-BR') : 'N/A';
+                const card = `
+                    <div class="card bg-white p-6 rounded-2xl border-2 border-gray-100 flex flex-col justify-between">
+                        <div>
+                            <div class="flex items-center justify-between mb-4">
+                                <span class="text-sm font-medium text-gray-500">${job.company}</span>
+                                <span class="fit-score text-white text-base ${fitColorClass}">${job.fit_score}</span>
+                            </div>
+                            <h2 class="text-2xl font-bold text-gray-900 mb-3">${job.job_title}</h2>
+                            <p class="text-gray-600 text-sm mb-4">
+                                <span class="font-semibold">Resumo:</span> ${job.resume_summary}
+                            </p>
+                            <div class="mb-4">
+                                <h3 class="text-sm font-bold text-gray-700 mb-2">Competências Chave:</h3>
+                                <ul class="flex flex-wrap gap-2">
+                                    ${job.key_competencies.map(comp => `<li class="bg-indigo-50 text-indigo-700 text-xs font-semibold px-2.5 py-1 rounded-full">${comp}</li>`).join('')}
+                                </ul>
+                            </div>
+                        </div>
+                        <div class="flex flex-col sm:flex-row justify-between items-center text-sm text-gray-500 mt-4 pt-4 border-t border-gray-100">
+                            <span class="text-xs mb-2 sm:mb-0">Encontrado em: ${formattedDate}</span>
+                            <div class="flex gap-4">
+                                <a href="${job.job_link}" target="_blank" class="text-indigo-600 hover:text-indigo-800 font-bold">
+                                    Ver Vaga <i class="fas fa-external-link-alt ml-1"></i>
+                                </a>
+                                ${job.resume_url ? `<a href="${job.resume_url}" target="_blank" class="text-green-600 hover:text-green-800 font-bold">
+                                    Ver CV <i class="fas fa-file-download ml-1"></i>
+                                </a>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+                jobList.innerHTML += card;
+            });
+        }
+        
+        // Carrega as configurações do Firestore e preenche o formulário
+        async function loadSettings() {
+            try {
+                const docSnap = await getDoc(settingsDoc);
+                if (docSnap.exists()) {
+                    const settings = docSnap.data();
+                    profileInput.value = settings.profile || '';
+                    jobSitesInput.value = JSON.stringify(settings.job_sites, null, 2) || '[]';
+                    emailInput.value = settings.notif_email || '';
+                    minScoreInput.value = settings.min_fit_score || 8;
+                } else {
+                    console.log("Nenhuma configuração encontrada. Usando valores padrão.");
+                    profileInput.value = "## Perfil Profissional\n\n[Insira seu perfil completo aqui para o agente usar na análise.]\n\n## Habilidades Chave\n\n[Liste suas habilidades para otimizar os currículos.]";
+                    jobSitesInput.value = JSON.stringify([
+                        {"name": "Microsoft", "keywords": ["cloud", "azure"]},
+                        {"name": "Salesforce", "keywords": ["customer success", "brazil"]}
+                    ], null, 2);
+                    emailInput.value = "seu.email@exemplo.com";
+                    minScoreInput.value = 8;
+                }
+            } catch (error) {
+                console.error("Erro ao carregar configurações:", error);
+            }
+        }
+
+        // Salva as configurações no Firestore
+        saveSettingsButton.addEventListener('click', async () => {
+            saveSettingsButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Salvando...';
+            saveSettingsButton.disabled = true;
+            try {
+                const settingsToSave = {
+                    profile: profileInput.value,
+                    job_sites: JSON.parse(jobSitesInput.value),
+                    notif_email: emailInput.value,
+                    min_fit_score: parseInt(minScoreInput.value)
+                };
+                await setDoc(settingsDoc, settingsToSave);
+                alert("Configurações salvas com sucesso!");
+                settingsModal.classList.add('hidden');
+            } catch (error) {
+                console.error("Erro ao salvar configurações:", error);
+                alert("Erro ao salvar as configurações. Verifique o formato do JSON de sites.");
+            } finally {
+                saveSettingsButton.innerHTML = '<i class="fas fa-save mr-2"></i> Salvar';
+                saveSettingsButton.disabled = false;
+            }
+        });
+
+        const q = query(jobsCollection, orderBy("timestamp", "desc"));
+        onSnapshot(q, (querySnapshot) => {
+            const jobs = [];
+            querySnapshot.forEach((doc) => {
+                jobs.push(doc.data());
+            });
+            renderJobs(jobs);
+        });
+
+        runButton.addEventListener('click', async () => {
+            runButton.disabled = true;
+            runButton.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i> Rodando...';
+            try {
+                const response = await fetch(CLOUD_FUNCTION_URL, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'}
+                });
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                const result = await response.json();
+                console.log('Agente executado com sucesso:', result.message);
+            } catch (error) {
+                console.error('Erro ao rodar o agente:', error);
+                alert('Ocorreu um erro ao rodar o agente. Verifique os logs da sua Cloud Function e a URL de deploy.');
+            } finally {
+                runButton.disabled = false;
+                runButton.innerHTML = '<i class="fas fa-play mr-2"></i> Rodar Agente';
+            }
+        });
+
+        // Lidar com o modal
+        openSettingsButton.addEventListener('click', () => {
+            loadSettings();
+            settingsModal.classList.remove('hidden');
+        });
+        closeModalButton.addEventListener('click', () => {
+            settingsModal.classList.add('hidden');
+        });
+
+    </script>
+</body>
+</html>

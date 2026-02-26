@@ -1,0 +1,68 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Regra padrão: apenas usuários autenticados podem ler/escrever seus próprios dados
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+    
+    // Licitações (LiciAI)
+    match /licitacoes/{licitacaoId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+    
+    // Análises de editais (LiciAI)
+    match /analises_editais/{analiseId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+    
+    // Contratos (LiciAI)
+    match /contratos/{contratoId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+    
+    // Pacientes (Clínia)
+    match /pacientes/{pacienteId} {
+      allow read: if request.auth != null && resource.data.clinicaId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.clinicaId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.clinicaId == request.auth.uid;
+    }
+    
+    // Consultas (Clínia)
+    match /consultas/{consultaId} {
+      allow read: if request.auth != null && resource.data.clinicaId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.clinicaId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.clinicaId == request.auth.uid;
+    }
+    
+    // Job Applications (JobsAgent)
+    match /jobapplications/{jobId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+    
+    // Configurações de usuário (JobsAgent)
+    match /user_settings/{userId} {
+      allow read, write: if request.auth != null && userId == request.auth.uid;
+    }
+    
+    // Logs do agente (JobsAgent)
+    match /agent_logs/{logId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+    }
+    
+    // Análises de TR (AnalisadorTR)
+    match /analises_tr/{analiseId} {
+      allow read: if request.auth != null && resource.data.userId == request.auth.uid;
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+  }
+}
