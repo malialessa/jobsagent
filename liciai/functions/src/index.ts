@@ -13,8 +13,10 @@
             *
              * --- PADRONIZAÇÃO DE MODELOS DE IA (Válido em Out/2025) ---
               * 
-               * -   MODELO DE EMBEDDING: `text-embedding-004`. Otimizado para gerar representações numéricas
-                *     de texto para tarefas de busca e recuperação.
+               * -   MODELO DE EMBEDDING: `text-embedding-005` (definido em .env.uniquex-487718: EMBEDDING_MODEL).
+                *     Otimizado para gerar representações numéricas de texto para tarefas de busca e recuperação.
+                 *     ATENÇÃO: Não altere o modelo sem re-indexar todos os vetores em core.knowledge_vectors —
+                  *     vetores de modelos diferentes NÃO são compatíveis entre si.
                  * 
                   * -   MODELO GENERATIVO (LLM): Para tarefas que exigem raciocínio, análise e geração de texto
                    *     (como `/analisarErroComIA`), padronizamos o uso do modelo estável mais avançado da família Gemini: `gemini-2.5-pro`.
@@ -58,20 +60,22 @@ import express from 'express';
 import cors from 'cors';
 import axios from "axios";
 import pdf from "pdf-parse";
-import { randomUUID } from "crypto";
+import { randomUUID, createHash } from "crypto";
 import * as fs from "fs";
 import * as path from "path";
 import { Storage } from "@google-cloud/storage";
+import Stripe from "stripe";
+import sgMail from "@sendgrid/mail";
 
 // --- INICIALIZAÇÃO E CONFIGURAÇÃO GLOBAL ---
 initializeApp();
 
 // <<<< ABORDAGEM SIMPLIFICADA E COMBINADA
-const GCP_PROJECT_ID = process.env.GCP_PROJECT_ID || "sharp-footing-475513-c7";
+const GCP_PROJECT_ID = process.env.GCP_PROJECT_ID || "uniquex-487718";
 const FUNCTIONS_REGION = process.env.FUNCTIONS_REGION || "us-east1";
 const EMBEDDING_REGION = process.env.EMBEDDING_REGION || "us-central1";
 const EMBEDDING_MODEL = process.env.EMBEDDING_MODEL || "text-embedding-004";
-const CORS_ORIGIN = process.env.CORS_ORIGIN || "https://liciai1.web.app";
+const CORS_ORIGIN = process.env.CORS_ORIGIN || "https://liciai-uniquex-487718.web.app";
 const BIGQUERY_LOCATION = "US";
 const DATASET_STG = "stg";
 const DATASET_LOG = "log";
@@ -84,9 +88,54 @@ const TABLE_FUNCTION_SCORED = "fn_get_scored_opportunities";
 const PNCP_API_URL = "https://pncp.gov.br/api/consulta/v1/contratacoes/publicacao";
 const PNCP_API_URL_ABERTAS = "https://pncp.gov.br/api/consulta/v1/contratacoes/proposta";
 const CLOUD_TASKS_QUEUE_NAME = "pncp-backfill-queue";
-const ADMIN_UIDS = ["2bfsnZTOaWeiK1xaQQPljverQNn2"];
-const KNOWLEDGE_BUCKET = "liciai-knowledge-base";
+// ADMIN_UIDS: carregado de env var para evitar hardcoded no código-fonte.
+// Para adicionar admins, edite functions/.env.uniquex-487718 e redeploy.
+const ADMIN_UIDS: string[] = (process.env.ADMIN_UIDS || "2bfsnZTOaWeiK1xaQQPljverQNn2").split(",").map(s => s.trim()).filter(Boolean);
+const KNOWLEDGE_BUCKET = process.env.KNOWLEDGE_BUCKET || "itensx";
 const TABLE_KNOWLEDGE_VECTORS = "knowledge_vectors";
+
+// --- Stripe ---
+const STRIPE_SECRET_KEY     = process.env.STRIPE_SECRET_KEY     || "";
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
+const STRIPE_PRICE_PRO      = process.env.STRIPE_PRICE_PRO      || "";
+const STRIPE_PRICE_ENTERPRISE = process.env.STRIPE_PRICE_ENTERPRISE || "";
+// Lazy-init: só cria instância se a key estiver configurada
+const getStripe = (() => {
+        let instance: Stripe | null = null;
+        return () => {
+                if (!instance && STRIPE_SECRET_KEY) instance = new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2026-02-25.clover" });
+                return instance;
+        };
+})();
+
+// --- SendGrid ---
+const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || "";
+if (SENDGRID_API_KEY) sgMail.setApiKey(SENDGRID_API_KEY);
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+// @ts-ignore
+const ALERT_FROM_EMAIL = process.env.ALERT_FROM_EMAIL || "alertas@liciai.com.br";
+
+type PlanoNome = "free" | "pro" | "enterprise" | "gov";
+
+interface ClientePlanoInfo {
+        cliente_id: string;
+        tenant_id: string;
+        plano: PlanoNome;
+        status_pagamento: string;
+        limite_uf: number;
+        limite_oportunidades: number;
+        limite_docs: number;
+        limite_produtos: number;
+        trial_inicio?: string | null;
+        trial_fim?: string | null;
+}
+
+const LIMITES_PADRAO_POR_PLANO: Record<PlanoNome, Omit<ClientePlanoInfo, "cliente_id" | "tenant_id" | "plano" | "status_pagamento">> = {
+        free: { limite_uf: 1, limite_oportunidades: 20, limite_docs: 3, limite_produtos: 0 },
+        pro: { limite_uf: 3, limite_oportunidades: 200, limite_docs: 10, limite_produtos: 10 },
+        enterprise: { limite_uf: 9999, limite_oportunidades: 999999, limite_docs: 999999, limite_produtos: 999999 },
+        gov: { limite_uf: 9999, limite_oportunidades: 999999, limite_docs: 999999, limite_produtos: 999999 },
+};
 
 setGlobalOptions({ region: FUNCTIONS_REGION });
 const bq = new BigQuery({ projectId: GCP_PROJECT_ID });
@@ -135,6 +184,29 @@ async function logErrorToBigQuery(errorData: Record<string, any>): Promise<void>
                         loggingError: error,
                 });
         }
+}
+
+// Serializa uma row do BigQuery convertendo tipos especiais para primitivos JSON:
+// - BigQuery DATETIME/TIMESTAMP retornam como {value: "..."} → extrai a string
+// - BigQuery NUMERIC retorna como string decimal → converte para number
+// - null/undefined permanecem null
+function serializeBqRow(row: Record<string, any>): Record<string, any> {
+        const result: Record<string, any> = {};
+        for (const [key, val] of Object.entries(row)) {
+                if (val === null || val === undefined) {
+                        result[key] = null;
+                } else if (typeof val === 'object' && !Array.isArray(val) && 'value' in val) {
+                        // BigQuery DATE/DATETIME/TIMESTAMP
+                        result[key] = val.value ?? null;
+                } else if (Array.isArray(val)) {
+                        result[key] = val.map((v: any) =>
+                                (v !== null && typeof v === 'object' && 'value' in v) ? v.value : v
+                        );
+                } else {
+                        result[key] = val;
+                }
+        }
+        return result;
 }
 
 // --- HELPERS DE EMBEDDING (REST) ---
@@ -219,7 +291,17 @@ async function embedBatchREST(texts: string[]): Promise<number[][]> {
 
 // --- CONFIGURAÇÃO DO SERVIDOR EXPRESS ---
 const app = express();
-app.use(cors({ origin: [CORS_ORIGIN, "http://localhost:5173", "http://localhost:3000", "http://127.0.0.1:5173"] }));
+app.use(cors({
+        origin: [
+                CORS_ORIGIN,
+                "https://liciai-uniquex-487718.web.app",
+                "https://us-east1-uniquex-487718.cloudfunctions.net",
+                "http://localhost:5173",
+                "http://localhost:3000",
+                "http://127.0.0.1:5173"
+        ],
+        credentials: true
+}));
 app.use(express.json({ limit: "10mb" }));
 
 declare global {
@@ -227,6 +309,7 @@ declare global {
                 interface Request {
                         user?: DecodedIdToken;
                         uid?: string;
+                        planInfo?: ClientePlanoInfo;
                 }
         }
 }
@@ -267,6 +350,222 @@ const adminAuthMiddleware = async (req: express.Request, res: express.Response, 
         }
 };
 
+let cachedClientTableName: string | null = null;
+let cachedClientTableColumns: Set<string> | null = null;
+
+const normalizePlano = (planoRaw: unknown): PlanoNome => {
+        const plano = String(planoRaw || "free").toLowerCase();
+        if (plano === "pro" || plano === "enterprise" || plano === "gov") return plano;
+        return "free";
+};
+
+const toPositiveInt = (value: unknown, fallback: number): number => {
+        const n = Number(value);
+        if (Number.isFinite(n) && n >= 0) return Math.floor(n);
+        return fallback;
+};
+
+const sendApiError = (
+        res: express.Response,
+        status: number,
+        code: string,
+        message: string,
+        details?: Record<string, any>
+) => {
+        return res.status(status).json({ error: { code, message, details: details || null } });
+};
+
+async function resolveClientTableName(): Promise<string> {
+        if (cachedClientTableName) return cachedClientTableName;
+        const query = `
+                SELECT table_name
+                FROM \`${GCP_PROJECT_ID}.${DATASET_DIM}.INFORMATION_SCHEMA.TABLES\`
+                WHERE table_name IN ('cliente', 'clientes')
+                ORDER BY CASE WHEN table_name = 'cliente' THEN 0 ELSE 1 END
+                LIMIT 1
+        `;
+        const [rows] = await bq.query({ query, location: BIGQUERY_LOCATION });
+        if (!rows.length) {
+                throw new Error("Tabela de clientes não encontrada no dataset dim (esperado: cliente ou clientes).");
+        }
+        cachedClientTableName = String(rows[0].table_name);
+        return String(rows[0].table_name);
+}
+
+async function resolveClientTableColumns(): Promise<Set<string>> {
+        if (cachedClientTableColumns) return cachedClientTableColumns;
+        const tableName = await resolveClientTableName();
+        const query = `
+                SELECT column_name
+                FROM \`${GCP_PROJECT_ID}.${DATASET_DIM}.INFORMATION_SCHEMA.COLUMNS\`
+                WHERE table_name = @tableName
+        `;
+        const [rows] = await bq.query({ query, location: BIGQUERY_LOCATION, params: { tableName } });
+        cachedClientTableColumns = new Set(rows.map((r: any) => String(r.column_name)));
+        return cachedClientTableColumns;
+}
+
+function buildClientePlanoFromRow(uid: string, row: Record<string, any>): ClientePlanoInfo {
+        const plano = normalizePlano(row.plano);
+        const limitesPadrao = LIMITES_PADRAO_POR_PLANO[plano];
+        return {
+                cliente_id: uid,
+                tenant_id: String(row.tenant_id || uid),
+                plano,
+                status_pagamento: String(row.status_pagamento || "ativo"),
+                limite_uf: toPositiveInt(row.limite_uf, limitesPadrao.limite_uf),
+                limite_oportunidades: toPositiveInt(row.limite_oportunidades, limitesPadrao.limite_oportunidades),
+                limite_docs: toPositiveInt(row.limite_docs, limitesPadrao.limite_docs),
+                limite_produtos: toPositiveInt(row.limite_produtos, limitesPadrao.limite_produtos),
+                trial_inicio: row.trial_inicio ? String(row.trial_inicio) : null,
+                trial_fim: row.trial_fim ? String(row.trial_fim) : null,
+        };
+}
+
+async function upsertClienteDefault(uid: string, email?: string): Promise<ClientePlanoInfo> {
+        const tableName = await resolveClientTableName();
+        const columns = await resolveClientTableColumns();
+        const now = new Date();
+        const trialFim = new Date(now);
+        trialFim.setDate(trialFim.getDate() + 7);
+        const proLimits = LIMITES_PADRAO_POR_PLANO["pro"];
+        const baseDefault = {
+                cliente_id: uid,
+                tenant_id: uid,
+                email: email || "",
+                nome_exibicao: (email || uid).split('@')[0] || "Novo Usuário",
+                plano: "pro", // trial usa limites pro
+                status_pagamento: "trial",
+                limite_uf: proLimits.limite_uf,
+                limite_oportunidades: proLimits.limite_oportunidades,
+                limite_docs: proLimits.limite_docs,
+                limite_produtos: proLimits.limite_produtos,
+                trial_inicio: now.toISOString(),
+                trial_fim: trialFim.toISOString(),
+                data_cadastro: now.toISOString(),
+                data_ultima_modificacao: now.toISOString(),
+        };
+
+        const rowToInsert = Object.fromEntries(
+                Object.entries(baseDefault).filter(([key]) => columns.has(key))
+        );
+
+        if (Object.keys(rowToInsert).length === 0 || !rowToInsert.cliente_id) {
+                throw new Error(`Tabela ${tableName} não possui colunas mínimas para cadastro padrão.`);
+        }
+
+        await bq.dataset(DATASET_DIM).table(tableName).insert([rowToInsert]);
+        return buildClientePlanoFromRow(uid, rowToInsert);
+}
+
+async function getOrCreateClientePlano(uid: string, email?: string): Promise<ClientePlanoInfo> {
+        const tableName = await resolveClientTableName();
+        const query = `
+                SELECT TO_JSON_STRING(t) AS row_json
+                FROM \`${GCP_PROJECT_ID}.${DATASET_DIM}.${tableName}\` t
+                WHERE cliente_id = @cliente_id
+                LIMIT 1
+        `;
+
+        const [rows] = await bq.query({
+                query,
+                location: BIGQUERY_LOCATION,
+                params: { cliente_id: uid },
+        });
+
+        if (rows.length === 0) {
+                return upsertClienteDefault(uid, email);
+        }
+
+        const parsed = JSON.parse(rows[0].row_json || "{}");
+        return buildClientePlanoFromRow(uid, parsed);
+}
+
+const userPlanMiddleware = async (req: express.Request, res: express.Response, next: express.NextFunction) => {
+        try {
+                const uid = req.uid;
+                if (!uid) {
+                        return sendApiError(res, 401, "UNAUTHORIZED", "Usuário não autenticado.");
+                }
+
+                const planInfo = await getOrCreateClientePlano(uid, req.user?.email);
+                const status = planInfo.status_pagamento.toLowerCase();
+
+                if (["cancelado", "inadimplente", "bloqueado"].includes(status)) {
+                        return sendApiError(res, 403, "PLAN_INACTIVE", "Seu plano está inativo. Regularize o pagamento para continuar.", {
+                                plano: planInfo.plano,
+                                status_pagamento: planInfo.status_pagamento,
+                        });
+                }
+
+                // Verificar se trial expirou — se sim, tratar como free
+                if (status === "trial" && planInfo.trial_fim) {
+                        const trialExpired = new Date(planInfo.trial_fim) < new Date();
+                        if (trialExpired) {
+                                const freeLimits = LIMITES_PADRAO_POR_PLANO["free"];
+                                planInfo.plano = "free";
+                                planInfo.status_pagamento = "trial_expirado";
+                                planInfo.limite_uf = freeLimits.limite_uf;
+                                planInfo.limite_oportunidades = freeLimits.limite_oportunidades;
+                                planInfo.limite_docs = freeLimits.limite_docs;
+                                planInfo.limite_produtos = freeLimits.limite_produtos;
+                        }
+                }
+
+                req.planInfo = planInfo;
+                return next();
+        } catch (error: any) {
+                await logErrorToBigQuery({
+                        funcao_ou_componente: "userPlanMiddleware",
+                        cliente_id: req.uid,
+                        mensagem: error.message,
+                        stack_trace: error.stack,
+                });
+                return sendApiError(res, 500, "PLAN_LOOKUP_ERROR", "Falha ao validar plano do usuário.");
+        }
+};
+
+const oportunidadesQuotaMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+        const planInfo = req.planInfo;
+        if (!planInfo) {
+                return sendApiError(res, 500, "PLAN_CONTEXT_MISSING", "Contexto de plano não disponível.");
+        }
+
+        const ufParam = typeof req.query.uf === 'string' ? req.query.uf : '';
+        const ufList = ufParam
+                .split(',')
+                .map((uf) => uf.trim().toUpperCase())
+                .filter(Boolean);
+
+        if (planInfo.limite_uf > 0 && ufList.length > planInfo.limite_uf) {
+                return sendApiError(res, 403, "UF_LIMIT_EXCEEDED", "Seu plano não permite monitorar essa quantidade de UFs nesta consulta.", {
+                        limite_uf: planInfo.limite_uf,
+                        solicitado: ufList.length,
+                        plano: planInfo.plano,
+                });
+        }
+
+        const reqLimit = parseInt(String(req.query.limit || "21"), 10) || 21;
+        const reqOffset = parseInt(String(req.query.offset || "0"), 10) || 0;
+
+        if (planInfo.limite_oportunidades > 0) {
+                const restante = planInfo.limite_oportunidades - reqOffset;
+                if (restante <= 0) {
+                        return sendApiError(res, 403, "QUOTA_EXCEEDED", "Limite de oportunidades do plano atingido. Faça upgrade para continuar.", {
+                                recurso: "oportunidades",
+                                limite: planInfo.limite_oportunidades,
+                                offset: reqOffset,
+                                plano: planInfo.plano,
+                        });
+                }
+
+                const limitAjustado = Math.max(1, Math.min(reqLimit, restante));
+                (req.query as any).limit = String(limitAjustado);
+        }
+
+        return next();
+};
+
 // --- ROTAS DO EXPRESS ---
 app.get('/healthz', (_req, res) => res.status(200).send('ok'));
 
@@ -274,7 +573,7 @@ app.get('/healthz', (_req, res) => res.status(200).send('ok'));
 app.get('/getOportunidades', async (req, res) => {
         try {
                 const { uf, q, limit: limitStr, offset: offsetStr } = req.query;
-                const limit = parseInt(limitStr as string) || 21;
+                const limit = Math.min(parseInt(limitStr as string) || 21, 100); // cap em 100 por segurança
                 const offset = parseInt(offsetStr as string) || 0;
                 let query = `SELECT * FROM \`${GCP_PROJECT_ID}.${DATASET_CORE}.${VIEW_OPORTUNIDADES}\``;
                 const whereClauses: string[] = [];
@@ -293,7 +592,7 @@ app.get('/getOportunidades', async (req, res) => {
                 queryParams.offset = offset;
                 const [rows] = await bq.query({ query, location: BIGQUERY_LOCATION, params: queryParams });
                 const nextOffset = rows.length === limit ? offset + limit : null;
-                res.status(200).json({ items: rows, nextOffset });
+                res.status(200).json({ items: rows.map(serializeBqRow), nextOffset });
         } catch (error: any) {
                 await logErrorToBigQuery({ funcao_ou_componente: "getOportunidades", mensagem: error.message, stack_trace: error.stack, contexto: JSON.stringify({ reqQuery: req.query }) });
                 res.status(500).send("Erro interno ao buscar oportunidades.");
@@ -323,11 +622,11 @@ app.post('/logError', async (req, res) => {
 });
 
 // --- ROTAS AUTENTICADAS PARA USUÁRIOS (protegidas individualmente) ---
-app.get('/getScoredOportunidades', userAuthMiddleware, async (req, res) => {
+app.get('/getScoredOportunidades', userAuthMiddleware, userPlanMiddleware, oportunidadesQuotaMiddleware, async (req, res) => {
         try {
                 const uid = req.uid!;
                 const { uf, q, limit: limitStr, offset: offsetStr } = req.query;
-                const limit = parseInt(limitStr as string) || 21;
+                const limit = Math.min(parseInt(limitStr as string) || 21, 100); // cap em 100 por segurança
                 const offset = parseInt(offsetStr as string) || 0;
                 let query = `SELECT * FROM \`${GCP_PROJECT_ID}.${DATASET_CORE}.${TABLE_FUNCTION_SCORED}\`(@cliente_id)`;
                 const whereClauses: string[] = [];
@@ -348,18 +647,45 @@ app.get('/getScoredOportunidades', userAuthMiddleware, async (req, res) => {
                 queryParams.offset = offset;
                 const [rows] = await bq.query({ query, location: BIGQUERY_LOCATION, params: queryParams });
                 const nextOffset = rows.length === limit ? offset + limit : null;
-                res.status(200).json({ items: rows, nextOffset });
+                res.status(200).json({ items: rows.map(serializeBqRow), nextOffset, plano: req.planInfo?.plano || 'free' });
         } catch (error: any) {
                 await logErrorToBigQuery({ funcao_ou_componente: "getScoredOportunidades", cliente_id: req.uid, mensagem: error.message, stack_trace: error.stack, contexto: JSON.stringify({ reqQuery: req.query }) });
                 res.status(500).json({ message: 'Erro interno ao processar o ranking.' });
         }
 });
 
+app.get('/getPlanoAtual', userAuthMiddleware, userPlanMiddleware, async (req, res) => {
+        const planInfo = req.planInfo!;
+        const isInTrial = planInfo.status_pagamento.toLowerCase() === 'trial';
+        let trialDiasRestantes: number | null = null;
+        if (isInTrial && planInfo.trial_fim) {
+                const fim = new Date(planInfo.trial_fim);
+                const agora = new Date();
+                trialDiasRestantes = Math.max(0, Math.ceil((fim.getTime() - agora.getTime()) / (1000 * 60 * 60 * 24)));
+        }
+        res.status(200).json({
+                plano: planInfo.plano,
+                status_pagamento: planInfo.status_pagamento,
+                limites: {
+                        uf: planInfo.limite_uf,
+                        oportunidades: planInfo.limite_oportunidades,
+                        docs: planInfo.limite_docs,
+                        produtos: planInfo.limite_produtos,
+                },
+                tenant_id: planInfo.tenant_id,
+                trial: isInTrial ? {
+                        ativo: true,
+                        dias_restantes: trialDiasRestantes,
+                        trial_fim: planInfo.trial_fim,
+                } : null,
+        });
+});
+
 app.get('/getClienteConfiguracoes', userAuthMiddleware, async (req, res) => {
         try {
                 const query = `SELECT palavra_chave, peso FROM \`${GCP_PROJECT_ID}.${DATASET_DIM}.cliente_configuracoes\` WHERE cliente_id = @cliente_id ORDER BY peso DESC`;
                 const [rows] = await bq.query({ query, location: BIGQUERY_LOCATION, params: { cliente_id: req.uid } });
-                res.status(200).json({ palavrasChave: rows });
+                res.status(200).json({ palavrasChave: rows.map(serializeBqRow) });
         } catch (error: any) {
                 await logErrorToBigQuery({ funcao_ou_componente: "getClienteConfiguracoes", cliente_id: req.uid, mensagem: error.message, stack_trace: error.stack });
                 res.status(500).json({ message: 'Erro interno ao buscar configurações.' });
@@ -378,10 +704,10 @@ app.post('/addPalavraChave', userAuthMiddleware, async (req, res) => {
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                WHEN NOT MATCHED THEN INSERT (cliente_id, palavra_chave, peso, data_criacao, data_ultima_modificacao)
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          VALUES(@clienteId, @palavraChave, @finalPeso, CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP())`;
                 await bq.query({ query, params: { clienteId: req.uid, palavraChave: palavraChave.toLowerCase(), finalPeso } });
-                res.status(200).json({ success: true });
+                return res.status(200).json({ success: true });
         } catch (error: any) {
                 await logErrorToBigQuery({ funcao_ou_componente: "addPalavraChave", cliente_id: req.uid, mensagem: error.message, stack_trace: error.stack, contexto: JSON.stringify(req.body) });
-                res.status(500).json({ message: 'Erro interno ao salvar palavra-chave.' });
+                return res.status(500).json({ message: 'Erro interno ao salvar palavra-chave.' });
         }
 });
 
@@ -391,24 +717,60 @@ app.post('/removePalavraChave', userAuthMiddleware, async (req, res) => {
                 if (!palavraChave) return res.status(400).json({ message: "Parâmetro 'palavraChave' é obrigatório." });
                 const query = `DELETE FROM \`${GCP_PROJECT_ID}.${DATASET_DIM}.cliente_configuracoes\` WHERE cliente_id = @clienteId AND palavra_chave = @palavraChave`;
                 await bq.query({ query, params: { clienteId: req.uid, palavraChave: palavraChave.toLowerCase() } });
-                res.status(200).json({ success: true });
+                return res.status(200).json({ success: true });
         } catch (error: any) {
                 await logErrorToBigQuery({ funcao_ou_componente: "removePalavraChave", cliente_id: req.uid, mensagem: error.message, stack_trace: error.stack, contexto: JSON.stringify(req.body) });
-                res.status(500).json({ message: 'Erro interno ao remover palavra-chave.' });
+                return res.status(500).json({ message: 'Erro interno ao remover palavra-chave.' });
         }
 });
 
-app.get('/getDetalhesOportunidade', userAuthMiddleware, async (req, res) => {
+app.get('/getDetalhesOportunidade', userAuthMiddleware, userPlanMiddleware, async (req, res) => {
         try {
                 const { id } = req.query;
-                if (!id) return res.status(400).json({ message: "ID da oportunidade é obrigatório." });
-                const query = `SELECT payload FROM \`${GCP_PROJECT_ID}.${DATASET_STG}.${TABLE_CONTRATACOES_RAW}\` WHERE JSON_EXTRACT_SCALAR(payload, '$.numeroControlePNCP') = @id LIMIT 1`;
-                const [rows] = await bq.query({ query, params: { id } });
-                if (rows.length === 0) return res.status(404).json({ message: "Oportunidade não encontrada." });
-                res.status(200).json(JSON.parse(rows[0].payload));
+                if (!id || typeof id !== 'string') return res.status(400).json({ message: "Parâmetro 'id' obrigatório." });
+                // Busca em core.contratacoes (fonte de verdade normalizada, não no raw stg)
+                const query = `SELECT * FROM \`${GCP_PROJECT_ID}.${DATASET_CORE}.contratacoes\` WHERE id_pncp = @id LIMIT 1`;
+                const [rows] = await bq.query({ query, location: BIGQUERY_LOCATION, params: { id } });
+                if (!rows || rows.length === 0) return res.status(404).json({ message: "Oportunidade não encontrada." });
+                const row = serializeBqRow(rows[0]);
+
+                // Enriquecimento: se modalidade_nome ou modo_disputa_nome estão ausentes,
+                // busca diretamente na API pública do PNCP como fallback
+                if (!row.modalidade_nome || !row.modo_disputa_nome) {
+                        try {
+                                const m = (id as string).match(/^(\d{14})-(\d+)-(\d+)\/(\d{4})$/);
+                                if (m) {
+                                        const [, cnpj, , seq, ano] = m;
+                                        const seqN = parseInt(seq, 10);
+                                        const pncpApiUrl = `https://pncp.gov.br/api/pncp/v1/orgaos/${cnpj}/compras/${ano}/${seqN}`;
+                                        const pncpRes = await fetch(pncpApiUrl, {
+                                                headers: { Accept: "application/json" },
+                                                signal: AbortSignal.timeout(6_000),
+                                        });
+                                        if (pncpRes.ok) {
+                                                const pncpData: any = await pncpRes.json();
+                                                if (!row.modalidade_nome)    row.modalidade_nome    = pncpData.nomeModalidadeContratacao  || pncpData.modalidadeNome || null;
+                                                if (!row.modo_disputa_nome)  row.modo_disputa_nome  = pncpData.nomeModoDisputa             || pncpData.modoDisputaNome || null;
+                                                if (!row.criterio_julgamento) row.criterio_julgamento = pncpData.criterioJulgamentoNome   || null;
+                                                if (!row.amparo_legal)        row.amparo_legal        = pncpData.amparoLegal?.descricao     || null;
+                                                if (!row.categoria_processo)  row.categoria_processo  = pncpData.categoriaProcessoNome     || null;
+                                                if (!row.tipo_beneficio)      row.tipo_beneficio      = pncpData.tipoBeneficioNome         || null;
+                                                if (!row.situacao_nome)       row.situacao_nome       = pncpData.situacaoCompraNome        || null;
+                                                if (!row.nome_orgao)          row.nome_orgao          = pncpData.orgaoEntidade?.razaoSocial || null;
+                                                if (!row.cnpj_orgao)         row.cnpj_orgao          = pncpData.orgaoEntidade?.cnpj        || null;
+                                                if (!row.nome_unidade_orgao)  row.nome_unidade_orgao  = pncpData.unidadeOrgao?.nomeUnidade  || null;
+                                                if (!row.valor_total_estimado) row.valor_total_estimado = pncpData.valorTotalEstimado      || null;
+                                        }
+                                }
+                        } catch (enrichErr: any) {
+                                logger.warn("Enriquecimento PNCP falhou (não crítico):", enrichErr.message);
+                        }
+                }
+
+                return res.status(200).json(row);
         } catch (error: any) {
                 await logErrorToBigQuery({ funcao_ou_componente: "getDetalhesOportunidade", cliente_id: req.uid, mensagem: error.message, stack_trace: error.stack, contexto: JSON.stringify(req.query) });
-                res.status(500).json({ message: 'Erro interno ao buscar detalhes.' });
+                return res.status(500).json({ message: 'Erro interno ao buscar detalhes.' });
         }
 });
 
@@ -471,7 +833,7 @@ app.post('/generateUploadUrl', adminAuthMiddleware, async (req, res) => {
                         .file(filePath)
                         .getSignedUrl(options);
 
-                res.status(200).json({ signedUrl: url });
+                return res.status(200).json({ signedUrl: url });
 
         } catch (error: any) {
                 logger.error("Erro ao gerar a URL assinada de upload", { error: error.message, stack: error.stack });
@@ -482,14 +844,14 @@ app.post('/generateUploadUrl', adminAuthMiddleware, async (req, res) => {
                         stack_trace: error.stack,
                         contexto: JSON.stringify(req.body)
                 });
-                res.status(500).json({ message: 'Erro interno ao gerar URL de upload.' });
+                return res.status(500).json({ message: 'Erro interno ao gerar URL de upload.' });
         }
 });
 
 // --- ROTAS DE ADMIN (protegidas individualmente com adminAuthMiddleware) ---
 app.post("/assistenteSprint", adminAuthMiddleware, async (req, res) => {
         try {
-                let { userPrompt, projectContext, chatHistory } = req.body; // Alterado para 'let' para permitir modificação
+                let { userPrompt, projectContext } = req.body; // Alterado para 'let' para permitir modificação
 
                 if (!userPrompt || userPrompt.trim() === '') {
                         return res.status(400).json({ message: "O 'userPrompt' não pode ser vazio." });
@@ -661,10 +1023,10 @@ app.get('/getProjectStructure', adminAuthMiddleware, async (_req, res) => {
                         const raw = fs.readFileSync(jsonPath, "utf8");
                         return res.status(200).json(JSON.parse(raw));
                 }
-                res.status(404).json({ message: "project-structure.json não encontrado. Execute o build localmente." });
+                return res.status(404).json({ message: "project-structure.json não encontrado. Execute o build localmente." });
         } catch (error: any) {
                 await logErrorToBigQuery({ funcao_ou_componente: "getProjectStructure", cliente_id: "admin", mensagem: error.message, stack_trace: error.stack });
-                res.status(500).json({ message: "Erro ao ler a estrutura do projeto." });
+                return res.status(500).json({ message: "Erro ao ler a estrutura do projeto." });
         }
 });
 
@@ -717,7 +1079,7 @@ app.get('/getErros', adminAuthMiddleware, async (req, res) => {
                 query += " ORDER BY COALESCE(last_modified, timestamp) DESC LIMIT @limit OFFSET @offset";
 
                 const [rows] = await bq.query({ query, params, location: BIGQUERY_LOCATION });
-                res.status(200).json({ items: rows, nextOffset: rows.length === limit ? offset + limit : null });
+                res.status(200).json({ items: rows.map(serializeBqRow), nextOffset: rows.length === limit ? offset + limit : null });
         } catch (error: any) {
                 await logErrorToBigQuery({ funcao_ou_componente: "getErros", cliente_id: req.uid, mensagem: error.message, stack_trace: error.stack });
                 res.status(500).json({ message: "Erro ao buscar logs de erro." });
@@ -749,10 +1111,10 @@ app.post('/updateErrorStatus', adminAuthMiddleware, async (req, res) => {
 
                 const newRow = { error_id: errorId, status: newStatus, last_modified: new Date().toISOString() };
                 await bq.dataset(DATASET_LOG).table(TABLE_ERROS).insert([newRow]);
-                res.status(200).json({ success: true, message: `Status do erro ${errorId} atualizado para ${newStatus}.` });
+                return res.status(200).json({ success: true, message: `Status do erro ${errorId} atualizado para ${newStatus}.` });
         } catch (error: any) {
                 await logErrorToBigQuery({ funcao_ou_componente: "updateErrorStatus", cliente_id: req.uid, mensagem: error.message, stack_trace: error.stack, contexto: JSON.stringify(req.body) });
-                res.status(500).json({ message: 'Erro ao atualizar status.' });
+                return res.status(500).json({ message: 'Erro ao atualizar status.' });
         }
 });
 
@@ -764,10 +1126,10 @@ app.post('/deleteError', adminAuthMiddleware, async (req, res) => {
                 const row = { error_id: errorId, status: "DELETADO", last_modified: new Date().toISOString() };
                 await bq.dataset(DATASET_LOG).table(TABLE_ERROS).insert([row]);
 
-                res.status(200).json({ success: true, message: `Erro ${errorId} marcado como DELETADO.` });
+                return res.status(200).json({ success: true, message: `Erro ${errorId} marcado como DELETADO.` });
         } catch (error: any) {
                 await logErrorToBigQuery({ funcao_ou_componente: "deleteError", cliente_id: req.uid, mensagem: error.message, stack_trace: error.stack, contexto: JSON.stringify(req.body) });
-                res.status(500).json({ message: 'Erro ao marcar erro como deletado.' });
+                return res.status(500).json({ message: 'Erro ao marcar erro como deletado.' });
         }
 });
 
@@ -780,10 +1142,10 @@ app.post('/updateErrorStatusBulk', adminAuthMiddleware, async (req, res) => {
                 const now = new Date().toISOString();
                 const rows = errorIds.map((id: string) => ({ error_id: id, status: newStatus, last_modified: now }));
                 await bq.dataset(DATASET_LOG).table(TABLE_ERROS).insert(rows);
-                res.status(200).json({ success: true, message: `${errorIds.length} erros marcados como ${newStatus}.` });
+                return res.status(200).json({ success: true, message: `${errorIds.length} erros marcados como ${newStatus}.` });
         } catch (error: any) {
                 await logErrorToBigQuery({ funcao_ou_componente: "updateErrorStatusBulk", cliente_id: req.uid, mensagem: error.message, stack_trace: error.stack, contexto: JSON.stringify(req.body) });
-                res.status(500).json({ message: 'Erro ao atualizar status em massa.' });
+                return res.status(500).json({ message: 'Erro ao atualizar status em massa.' });
         }
 });
 
@@ -798,10 +1160,10 @@ app.post('/deleteErrorBulk', adminAuthMiddleware, async (req, res) => {
                 const rows = errorIds.map((id: string) => ({ error_id: id, status: "DELETADO", last_modified: now }));
                 await bq.dataset(DATASET_LOG).table(TABLE_ERROS).insert(rows);
 
-                res.status(200).json({ success: true, message: `${errorIds.length} erros marcados como DELETADO.` });
+                return res.status(200).json({ success: true, message: `${errorIds.length} erros marcados como DELETADO.` });
         } catch (error: any) {
                 await logErrorToBigQuery({ funcao_ou_componente: "deleteErrorBulk", cliente_id: req.uid, mensagem: error.message, stack_trace: error.stack, contexto: JSON.stringify(req.body) });
-                res.status(500).json({ message: 'Erro ao marcar erros como deletados.' });
+                return res.status(500).json({ message: 'Erro ao marcar erros como deletados.' });
         }
 });
 
@@ -823,10 +1185,10 @@ app.post('/analisarEstruturaComIA', adminAuthMiddleware, async (req, res) => {
                 const responseText = result.response?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
                 if (!responseText) throw new Error("A IA retornou uma resposta vazia.");
 
-                res.status(200).json(JSON.parse(responseText));
+                return res.status(200).json(JSON.parse(responseText));
         } catch (error: any) {
                 await logErrorToBigQuery({ funcao_ou_componente: "analisarEstruturaComIA", cliente_id: req.uid, mensagem: error.message, stack_trace: error.stack });
-                res.status(500).json({ message: "A IA não conseguiu analisar a estrutura." });
+                return res.status(500).json({ message: "A IA não conseguiu analisar a estrutura." });
         }
 });
 
@@ -850,10 +1212,10 @@ app.post('/analisarErroComIA', adminAuthMiddleware, async (req, res) => {
 
                 await bq.dataset(DATASET_LOG).table(TABLE_ERROS).insert([{ error_id: errorObj.error_id, analise_ia: JSON.stringify(analysis), last_modified: new Date().toISOString() }]);
 
-                res.status(200).json(analysis);
+                return res.status(200).json(analysis);
         } catch (error: any) {
                 await logErrorToBigQuery({ funcao_ou_componente: "analisarErroComIA", cliente_id: req.uid, mensagem: error.message, stack_trace: error.stack, contexto: JSON.stringify(req.body) });
-                res.status(500).json({ message: "A IA não conseguiu analisar o erro." });
+                return res.status(500).json({ message: "A IA não conseguiu analisar o erro." });
         }
 });
 
@@ -862,16 +1224,16 @@ app.post('/analisarErroComIA', adminAuthMiddleware, async (req, res) => {
 // Rota para buscar o conteúdo atual do DNA
 app.get('/getProjectDna', adminAuthMiddleware, async (_req, res) => {
         try {
-                const query = "SELECT content, last_modified FROM `sharp-footing-475513-c7.core.project_dna` WHERE id = 'main' LIMIT 1";
+                const query = `SELECT content, last_modified FROM \`${GCP_PROJECT_ID}.${DATASET_CORE}.project_dna\` WHERE id = 'main' LIMIT 1`;
                 const [rows] = await bq.query({ query });
 
                 if (rows.length === 0) {
                         return res.status(404).json({ message: "Documento DNA do projeto não encontrado." });
                 }
-                res.status(200).json(rows[0]);
+                return res.status(200).json(serializeBqRow(rows[0]));
         } catch (error: any) {
                 await logErrorToBigQuery({ funcao_ou_componente: "getProjectDna", mensagem: error.message, stack_trace: error.stack });
-                res.status(500).json({ message: 'Erro ao buscar o DNA do projeto.' });
+                return res.status(500).json({ message: 'Erro ao buscar o DNA do projeto.' });
         }
 });
 
@@ -884,19 +1246,261 @@ app.post('/updateProjectDna', adminAuthMiddleware, async (req, res) => {
                 }
 
                 const query = `
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           UPDATE \`sharp-footing-475513-c7.core.project_dna\`
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           UPDATE \`${GCP_PROJECT_ID}.${DATASET_CORE}.project_dna\`
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        SET content = @content, last_modified = CURRENT_TIMESTAMP()
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    WHERE id = 'main'
                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            `;
                 await bq.query({ query, params: { content } });
-                res.status(200).json({ success: true, message: "DNA do projeto atualizado com sucesso." });
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        return res.status(200).json({ success: true, message: "DNA do projeto atualizado com sucesso." });
         } catch (error: any) {
                 await logErrorToBigQuery({ funcao_ou_componente: "updateProjectDna", mensagem: error.message, stack_trace: error.stack });
-                res.status(500).json({ message: 'Erro ao salvar o DNA do projeto.' });
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        return res.status(500).json({ message: 'Erro ao salvar o DNA do projeto.' });
+        }
+});
+
+// --- ROTAS DE ADMIN: INGESTÃO E TRANSFORMAÇÃO (Cloud Scheduler) ---
+
+// POST /admin/ingest/pncp — dispara coleta de uma UF (para Cloud Scheduler / manual)
+app.post('/admin/ingest/pncp', adminAuthMiddleware, async (req, res) => {
+        try {
+                const uf = ((req.body.uf as string) || "MT").toUpperCase();
+                const dataParam = req.body.data as string | undefined;
+                let dataColeta: string;
+                if (dataParam && /^\d{4}-\d{2}-\d{2}$/.test(dataParam)) {
+                        dataColeta = dataParam.replace(/-/g, "");
+                } else {
+                        const yesterday = new Date();
+                        yesterday.setDate(yesterday.getDate() - 1);
+                        dataColeta = yesterday.toISOString().slice(0, 10).replace(/-/g, "");
+                }
+                return await coletar(PNCP_API_URL, uf, dataColeta, res);
+        } catch (error: any) {
+                await logErrorToBigQuery({ funcao_ou_componente: "admin/ingest/pncp", mensagem: error.message, stack_trace: error.stack });
+                return res.status(500).json({ message: "Erro ao iniciar ingestão PNCP.", error: error.message });
+        }
+});
+
+// POST /admin/transform/merge — executa MERGE idempotente stg → core
+app.post('/admin/transform/merge', adminAuthMiddleware, async (req, res) => {
+        try {
+                const mergeQuery = `
+                        MERGE \`${GCP_PROJECT_ID}.${DATASET_CORE}.contratacoes\` AS T
+                        USING (
+                                SELECT
+                                        id_pncp, uf, hash_payload,
+                                        CURRENT_TIMESTAMP() AS ingest_time,
+                                        JSON_VALUE(payload, '$.orgaoEntidade.cnpj')            AS cnpj_orgao,
+                                        JSON_VALUE(payload, '$.orgaoEntidade.razaoSocial')     AS nome_orgao,
+                                        JSON_VALUE(payload, '$.unidadeOrgao.nomeUnidade')      AS nome_unidade_orgao,
+                                        JSON_VALUE(payload, '$.modalidadeNome')                AS modalidade_nome,
+                                        JSON_VALUE(payload, '$.modoDisputaNome')               AS modo_disputa_nome,
+                                        JSON_VALUE(payload, '$.situacaoCompraNome')            AS situacao_nome,
+                                        JSON_VALUE(payload, '$.objetoCompra')                  AS objeto_compra,
+                                        JSON_VALUE(payload, '$.tipoBeneficioNome')             AS tipo_beneficio,
+                                        JSON_VALUE(payload, '$.criterioJulgamentoNome')        AS criterio_julgamento,
+                                        JSON_VALUE(payload, '$.amparoLegal.descricao')         AS amparo_legal,
+                                        JSON_VALUE(payload, '$.categoriaProcessoNome')         AS categoria_processo,
+                                        SAFE_CAST(JSON_VALUE(payload, '$.valorTotalEstimado') AS NUMERIC)              AS valor_total_estimado,
+                                        DATE(SAFE_CAST(JSON_VALUE(payload, '$.dataPublicacaoPncp')    AS DATETIME))    AS data_publicacao_pncp,
+                                        SAFE_CAST(JSON_VALUE(payload, '$.dataAberturaProposta')       AS DATETIME)     AS data_abertura_proposta,
+                                        SAFE_CAST(JSON_VALUE(payload, '$.dataEncerramentoProposta')   AS DATETIME)     AS data_encerramento_proposta,
+                                        ROW_NUMBER() OVER (PARTITION BY id_pncp ORDER BY ingest_time DESC) AS rn
+                                FROM \`${GCP_PROJECT_ID}.${DATASET_STG}.${TABLE_CONTRATACOES_RAW}\`
+                                WHERE id_pncp IS NOT NULL
+                        ) AS S
+                        ON T.id_pncp = S.id_pncp AND S.rn = 1
+                        WHEN MATCHED AND T.hash_payload != S.hash_payload THEN UPDATE SET
+                                T.hash_payload = S.hash_payload, T.cnpj_orgao = S.cnpj_orgao,
+                                T.nome_orgao = S.nome_orgao, T.nome_unidade_orgao = S.nome_unidade_orgao,
+                                T.modalidade_nome = S.modalidade_nome, T.modo_disputa_nome = S.modo_disputa_nome,
+                                T.situacao_nome = S.situacao_nome, T.objeto_compra = S.objeto_compra,
+                                T.tipo_beneficio = S.tipo_beneficio, T.criterio_julgamento = S.criterio_julgamento,
+                                T.amparo_legal = S.amparo_legal, T.categoria_processo = S.categoria_processo,
+                                T.valor_total_estimado = S.valor_total_estimado,
+                                T.data_publicacao_pncp = S.data_publicacao_pncp,
+                                T.data_abertura_proposta = S.data_abertura_proposta,
+                                T.data_encerramento_proposta = S.data_encerramento_proposta,
+                                T.ingest_time = S.ingest_time
+                        WHEN NOT MATCHED BY TARGET AND S.rn = 1 THEN INSERT (
+                                id_pncp, uf, hash_payload, ingest_time,
+                                cnpj_orgao, nome_orgao, nome_unidade_orgao,
+                                modalidade_nome, modo_disputa_nome, situacao_nome, objeto_compra,
+                                tipo_beneficio, criterio_julgamento, amparo_legal, categoria_processo,
+                                valor_total_estimado,
+                                data_publicacao_pncp, data_abertura_proposta, data_encerramento_proposta
+                        ) VALUES (
+                                S.id_pncp, S.uf, S.hash_payload, S.ingest_time,
+                                S.cnpj_orgao, S.nome_orgao, S.nome_unidade_orgao,
+                                S.modalidade_nome, S.modo_disputa_nome, S.situacao_nome, S.objeto_compra,
+                                S.tipo_beneficio, S.criterio_julgamento, S.amparo_legal, S.categoria_processo,
+                                S.valor_total_estimado,
+                                S.data_publicacao_pncp, S.data_abertura_proposta, S.data_encerramento_proposta
+                        )
+                `;
+                const [job] = await bq.createQueryJob({ query: mergeQuery, location: 'US' });
+                const [_rows] = await job.getQueryResults();
+                const stats = job.metadata?.statistics?.query;
+                return res.status(200).json({
+                        success: true,
+                        message: "MERGE stg → core executado com sucesso.",
+                        rowsAffected: stats?.numDmlAffectedRows ?? null
+                });
+        } catch (error: any) {
+                await logErrorToBigQuery({ funcao_ou_componente: "admin/transform/merge", mensagem: error.message, stack_trace: error.stack });
+                return res.status(500).json({ message: "Erro ao executar MERGE.", error: error.message });
         }
 });
 
 // --- ROTEADOR PRINCIPAL E EXPORTAÇÃO DA API ---
+
+// POST /createCheckout — cria sessão de checkout Stripe para upgrade de plano
+app.post('/createCheckout', userAuthMiddleware, async (req: any, res) => {
+        try {
+                const stripe = getStripe();
+                if (!stripe) return res.status(503).json({ message: "Stripe não configurado neste ambiente." });
+
+                const { plano } = req.body as { plano?: string };
+                const priceId = plano === "enterprise" ? STRIPE_PRICE_ENTERPRISE : STRIPE_PRICE_PRO;
+                if (!priceId) return res.status(400).json({ message: "Plano inválido ou Price ID não configurado." });
+
+                const uid: string = req.user?.uid;
+                const email: string | undefined = req.user?.email;
+                const tenantId = uid; // 1:1 por ora
+
+                const origin = req.headers.origin || "https://liciai-uniquex-487718.web.app";
+                const session = await stripe.checkout.sessions.create({
+                        payment_method_types: ["card"],
+                        line_items: [{ price: priceId, quantity: 1 }],
+                        mode: "subscription",
+                        customer_email: email,
+                        metadata: { uid, tenantId, plano: plano ?? "pro" },
+                        success_url: `${origin}/planos?checkout=success`,
+                        cancel_url:  `${origin}/planos?checkout=cancel`,
+                });
+                return res.json({ url: session.url });
+        } catch (error: any) {
+                await logErrorToBigQuery({ funcao_ou_componente: "createCheckout", mensagem: error.message, stack_trace: error.stack });
+                return res.status(500).json({ message: "Erro ao criar sessão de checkout.", error: error.message });
+        }
+});
+
+// POST /stripeWebhook — recebe eventos Stripe (raw body obrigatório)
+// Nota: esta rota usa express.raw() aplicado individualmente via middleware inline
+app.post('/stripeWebhook', express.raw({ type: "application/json" }), async (req, res) => {
+        try {
+                const stripe = getStripe();
+                if (!stripe || !STRIPE_WEBHOOK_SECRET) {
+                        return res.status(503).json({ message: "Stripe não configurado." });
+                }
+                const sig = req.headers["stripe-signature"]!;
+                let event: Stripe.Event;
+                try {
+                        event = stripe.webhooks.constructEvent(req.body, sig, STRIPE_WEBHOOK_SECRET);
+                } catch (err: any) {
+                        logger.warn("Assinatura de webhook Stripe inválida", { err: err.message });
+                        return res.status(400).json({ message: `Webhook error: ${err.message}` });
+                }
+
+                if (event.type === "checkout.session.completed") {
+                        const session = event.data.object as Stripe.Checkout.Session;
+                        const { uid, tenantId, plano } = session.metadata ?? {};
+                        if (uid && tenantId && plano) {
+                                // Atualizar dim.cliente com novo plano e status ativo
+                                const updateQuery = `
+                                        UPDATE \`${GCP_PROJECT_ID}.${DATASET_DIM}.cliente\`
+                                        SET plano = @plano,
+                                            status_pagamento = 'ativo',
+                                            stripe_customer_id = @customerId,
+                                            stripe_subscription_id = @subscriptionId
+                                        WHERE tenant_id = @tenantId
+                                `;
+                                const params = {
+                                        plano,
+                                        customerId:      session.customer      ?? "",
+                                        subscriptionId:  session.subscription  ?? "",
+                                        tenantId,
+                                };
+                                const [job] = await bq.createQueryJob({ query: updateQuery, params, location: "US" });
+                                await job.getQueryResults();
+                                logger.info(`Plano atualizado para ${plano}`, { uid, tenantId });
+                        }
+                }
+
+                if (event.type === "customer.subscription.deleted") {
+                        const sub = event.data.object as Stripe.Subscription;
+                        const tenantId = sub.metadata?.tenantId;
+                        if (tenantId) {
+                                const downgradeQuery = `
+                                        UPDATE \`${GCP_PROJECT_ID}.${DATASET_DIM}.cliente\`
+                                        SET plano = 'free', status_pagamento = 'cancelado'
+                                        WHERE tenant_id = @tenantId
+                                `;
+                                const [job] = await bq.createQueryJob({ query: downgradeQuery, params: { tenantId }, location: "US" });
+                                await job.getQueryResults();
+                                logger.info("Plano cancelado → downgrade para free", { tenantId });
+                        }
+                }
+
+                return res.json({ received: true });
+        } catch (error: any) {
+                await logErrorToBigQuery({ funcao_ou_componente: "stripeWebhook", mensagem: error.message, stack_trace: error.stack });
+                return res.status(500).json({ message: "Erro no webhook.", error: error.message });
+        }
+});
+
+// GET /getItensPNCP — proxy para a API PNCP de itens de uma contratação
+// Query: id_pncp (formato CNPJ-XXXXXXXX0001XX-1-SEQANO/YYYY ou numeroControlePNCP direto)
+app.get('/getItensPNCP', userAuthMiddleware, async (req, res) => {
+        try {
+                const idPncp = String(req.query.id_pncp || "").trim();
+                if (!idPncp) return res.status(400).json({ message: "id_pncp é obrigatório." });
+
+                // Extrair CNPJ, anual, sequencial e ano do numeroControlePNCP
+                // Formato: CNPJ14-ANUAL-SEQUENCIAL/ANO  ex: 00059311000126-1-000001/2024
+                const match = idPncp.match(/^(\d{14})-(\d+)-(\d+)\/(\d{4})$/);
+                if (!match) {
+                        return res.status(400).json({
+                                message: "Formato de id_pncp inválido. Esperado: CNPJ14-ANUAL-SEQ/ANO",
+                                idPncp,
+                        });
+                }
+                const [, cnpj, , sequencial, ano] = match;
+                const seqN = parseInt(sequencial, 10);
+                const pncpUrl = `https://pncp.gov.br/api/pncp/v1/orgaos/${cnpj}/compras/${ano}/${seqN}/itens?pagina=1&tamanhoPagina=500`;
+
+                const response = await fetch(pncpUrl, {
+                        headers: { Accept: "application/json" },
+                        signal: AbortSignal.timeout(10_000),
+                });
+
+                if (response.status === 404) return res.json({ items: [] });
+                if (!response.ok) {
+                        const body = await response.text().catch(() => "");
+                        return res.status(502).json({ message: "Erro ao consultar PNCP", pncpStatus: response.status, body });
+                }
+
+                const data: any = await response.json();
+                // API PNCP pode retornar array diretamente ou { data: [...] }
+                const raw = Array.isArray(data) ? data : (data?.data ?? data?.itens ?? []);
+                const items = raw.map((it: any) => ({
+                        numeroItem:               it.numeroItem ?? it.numero,
+                        descricao:                it.descricao ?? it.descricaoItem ?? "",
+                        quantidade:               it.quantidade,
+                        unidadeMedida:            it.unidadeMedida,
+                        valorUnitarioEstimado:    it.valorUnitarioEstimado,
+                        valorTotal:               it.valorTotal,
+                        tipoBeneficioNome:        it.tipoBeneficioNome,
+                        situacaoCompraItemNome:   it.situacaoCompraItemNome,
+                        materialOuServico:        it.materialOuServico,
+                        criterioJulgamentoNome:   it.criterioJulgamentoNome,
+                }));
+                return res.json({ items });
+        } catch (error: any) {
+                await logErrorToBigQuery({ funcao_ou_componente: "getItensPNCP", mensagem: error.message, stack_trace: error.stack });
+                return res.status(500).json({ message: "Erro ao buscar itens PNCP.", error: error.message });
+        }
+});
+
 const root = express();
 root.use('/api', app);
 export const api = onRequest(
@@ -906,7 +1510,7 @@ export const api = onRequest(
                 region: FUNCTIONS_REGION,
                 invoker: "public",
                 timeoutSeconds: 300,
-                minInstances: 1 // <-- GARANTE QUE UMA INSTÂNCIA FIQUE SEMPRE ATIVA
+                minInstances: 0
         },
         root
 );
@@ -979,20 +1583,33 @@ export const criarRegistroClienteNovo = auth.beforeUserCreated(async (event) => 
                 throw new Error("UID ou Email ausentes no evento de criação de usuário.");
         }
         const { uid, email, displayName } = user;
+        const now = new Date();
+        const trialFim = new Date(now);
+        trialFim.setDate(trialFim.getDate() + 7);
+        const proLimits = LIMITES_PADRAO_POR_PLANO["pro"];
         const cliente = {
                 cliente_id: uid,
+                tenant_id: uid,
                 email: email,
                 nome_exibicao: displayName || email.split('@')[0] || 'Novo Usuário',
-                plano: "free",
-                status_pagamento: "ativo",
-                limite_uf: 1,
-                limite_oportunidades: 20,
-                limite_docs: 3,
-                data_cadastro: new Date().toISOString(),
-                data_ultima_modificacao: new Date().toISOString()
+                plano: "pro" as PlanoNome,
+                status_pagamento: "trial",
+                limite_uf: proLimits.limite_uf,
+                limite_oportunidades: proLimits.limite_oportunidades,
+                limite_docs: proLimits.limite_docs,
+                limite_produtos: proLimits.limite_produtos,
+                trial_inicio: now.toISOString(),
+                trial_fim: trialFim.toISOString(),
+                data_cadastro: now.toISOString(),
+                data_ultima_modificacao: now.toISOString()
         };
         try {
-                await bq.dataset(DATASET_DIM).table("clientes").insert([cliente]);
+                const tableName = await resolveClientTableName();
+                const columns = await resolveClientTableColumns();
+                const rowToInsert = Object.fromEntries(
+                        Object.entries(cliente).filter(([key]) => columns.has(key))
+                );
+                await bq.dataset(DATASET_DIM).table(tableName).insert([rowToInsert]);
                 logger.info(`Cliente ${uid} inserido com sucesso no BigQuery.`);
         } catch (error: any) {
                 await logErrorToBigQuery({
@@ -1022,7 +1639,16 @@ const coletar = async (url: string, uf: string, dataColeta: string | null, res: 
                         const response = await axios.get(url, { params, timeout: 60000 });
                         const contratacoes = response.data?.data || [];
                         if (contratacoes.length > 0) {
-                                const rows = contratacoes.map((item: any) => ({ ingest_time: new Date(), payload: JSON.stringify(item) }));
+                                const rows = contratacoes.map((item: any) => {
+                                        const payloadStr = JSON.stringify(item);
+                                        return {
+                                                ingest_time: new Date(),
+                                                uf: uf,
+                                                id_pncp: item.numeroControlePNCP || null,
+                                                hash_payload: createHash('sha256').update(payloadStr).digest('hex'),
+                                                payload: payloadStr
+                                        };
+                                });
                                 await bq.dataset(DATASET_STG).table(TABLE_CONTRATACOES_RAW).insert(rows);
                                 totalInserido += rows.length;
                         }
@@ -1057,4 +1683,3 @@ export const coletarLicitacoesAbertas = onRequest({ timeoutSeconds: 540, memory:
         const uf = (req.query.uf as string)?.toUpperCase() || "MT";
         await coletar(PNCP_API_URL_ABERTAS, uf, null, res);
 });
- */
