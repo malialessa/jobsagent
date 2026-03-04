@@ -93,6 +93,9 @@ const CLOUD_TASKS_QUEUE_NAME = "pncp-backfill-queue";
 const ADMIN_UIDS: string[] = (process.env.ADMIN_UIDS || "2bfsnZTOaWeiK1xaQQPljverQNn2").split(",").map(s => s.trim()).filter(Boolean);
 const KNOWLEDGE_BUCKET = process.env.KNOWLEDGE_BUCKET || "itensx";
 const TABLE_KNOWLEDGE_VECTORS = "knowledge_vectors";
+// UFs coletadas diariamente (incrementalmente por ordem de volume)
+const UFS_INGEST_DIARIO = ["SP","MG","RJ","BA","RS","PR","PE","CE","GO","SC","PA","MA","PB","AM","PI","ES","RO","TO","AL","SE","MT","MS","RN","DF","AC","AP","RR"];
+const SCHEDULER_SECRET = process.env.SCHEDULER_SECRET || "";
 
 // --- Stripe ---
 const STRIPE_SECRET_KEY     = process.env.STRIPE_SECRET_KEY     || "";
@@ -348,6 +351,20 @@ const adminAuthMiddleware = async (req: express.Request, res: express.Response, 
                 logger.error("Falha na verificação do token de admin", { error });
                 return res.status(403).json({ message: 'Acesso negado. Token inválido.' });
         }
+};
+
+// Middleware para Cloud Scheduler — valida SCHEDULER_SECRET no header Authorization
+const schedulerAuthMiddleware = (req: express.Request, res: express.Response, next: express.NextFunction) => {
+        if (!SCHEDULER_SECRET) {
+                logger.error("SCHEDULER_SECRET não configurado");
+                return res.status(500).json({ message: "SCHEDULER_SECRET não configurado no servidor." });
+        }
+        const auth = req.headers.authorization || "";
+        const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+        if (!token || token !== SCHEDULER_SECRET) {
+                return res.status(403).json({ message: "Acesso negado. Token de scheduler inválido." });
+        }
+        return next();
 };
 
 let cachedClientTableName: string | null = null;
@@ -1347,6 +1364,127 @@ app.post('/admin/transform/merge', adminAuthMiddleware, async (req, res) => {
                 });
         } catch (error: any) {
                 await logErrorToBigQuery({ funcao_ou_componente: "admin/transform/merge", mensagem: error.message, stack_trace: error.stack });
+                return res.status(500).json({ message: "Erro ao executar MERGE.", error: error.message });
+        }
+});
+
+// --- ROTAS DE SCHEDULER (autenticadas por SCHEDULER_SECRET) ---
+
+// POST /scheduler/ingest/pncp — chamado pelo Cloud Scheduler às 03h UTC
+// Body opcional: { ufs: ["SP", "MG"] } — se omitido, usa UFS_INGEST_DIARIO
+// Body opcional: { data: "2026-03-04" } — se omitido, usa ontem
+app.post('/scheduler/ingest/pncp', schedulerAuthMiddleware, async (req, res) => {
+        const ufsParam = req.body?.ufs;
+        const ufs: string[] = (Array.isArray(ufsParam) && ufsParam.length > 0)
+                ? ufsParam.map((u: string) => u.toUpperCase())
+                : UFS_INGEST_DIARIO;
+        const dataParam = req.body?.data as string | undefined;
+        let dataColeta: string;
+        if (dataParam && /^\d{4}-\d{2}-\d{2}$/.test(dataParam)) {
+                dataColeta = dataParam.replace(/-/g, "");
+        } else {
+                const yesterday = new Date();
+                yesterday.setDate(yesterday.getDate() - 1);
+                dataColeta = yesterday.toISOString().slice(0, 10).replace(/-/g, "");
+        }
+        const results: Array<{ uf: string; status: string; detail?: string }> = [];
+        logger.info(`[scheduler/ingest/pncp] Iniciando ingestão de ${ufs.length} UFs para data ${dataColeta}`);
+        for (const uf of ufs) {
+                try {
+                        // fakeRes captura a resposta de coletar() sem enviar HTTP real
+                        const fakeRes: any = {
+                                _status: 200, _body: null,
+                                status(s: number) { this._status = s; return this; },
+                                json(b: any) { this._body = b; return this; },
+                                send(b: any) { this._body = b; return this; },
+                        };
+                        await coletar(PNCP_API_URL, uf, dataColeta, fakeRes);
+                        const isErr = fakeRes._status >= 400;
+                        results.push({ uf, status: isErr ? "error" : "ok", detail: String(fakeRes._body ?? "") });
+                } catch (err: any) {
+                        logger.error(`[scheduler/ingest/pncp] Erro na UF ${uf}: ${err.message}`);
+                        await logErrorToBigQuery({ funcao_ou_componente: `scheduler/ingest/pncp/${uf}`, mensagem: err.message, stack_trace: err.stack });
+                        results.push({ uf, status: "error", detail: err.message });
+                }
+        }
+        const errors = results.filter(r => r.status === "error").length;
+        return res.status(200).json({
+                success: errors === 0,
+                dataColeta,
+                ufsProcessadas: ufs.length,
+                erros: errors,
+                results,
+        });
+});
+
+// POST /scheduler/merge — chamado pelo Cloud Scheduler às 05h UTC
+app.post('/scheduler/merge', schedulerAuthMiddleware, async (req, res) => {
+        try {
+                const mergeQuery = `
+                        MERGE \`${GCP_PROJECT_ID}.${DATASET_CORE}.contratacoes\` AS T
+                        USING (
+                                SELECT
+                                        id_pncp, uf, hash_payload,
+                                        CURRENT_TIMESTAMP() AS ingest_time,
+                                        JSON_VALUE(payload, '$.orgaoEntidade.cnpj')            AS cnpj_orgao,
+                                        JSON_VALUE(payload, '$.orgaoEntidade.razaoSocial')     AS nome_orgao,
+                                        JSON_VALUE(payload, '$.unidadeOrgao.nomeUnidade')      AS nome_unidade_orgao,
+                                        JSON_VALUE(payload, '$.modalidadeNome')                AS modalidade_nome,
+                                        JSON_VALUE(payload, '$.modoDisputaNome')               AS modo_disputa_nome,
+                                        JSON_VALUE(payload, '$.situacaoCompraNome')            AS situacao_nome,
+                                        JSON_VALUE(payload, '$.objetoCompra')                  AS objeto_compra,
+                                        JSON_VALUE(payload, '$.tipoBeneficioNome')             AS tipo_beneficio,
+                                        JSON_VALUE(payload, '$.criterioJulgamentoNome')        AS criterio_julgamento,
+                                        JSON_VALUE(payload, '$.amparoLegal.descricao')         AS amparo_legal,
+                                        JSON_VALUE(payload, '$.categoriaProcessoNome')         AS categoria_processo,
+                                        SAFE_CAST(JSON_VALUE(payload, '$.valorTotalEstimado') AS NUMERIC)              AS valor_total_estimado,
+                                        DATE(SAFE_CAST(JSON_VALUE(payload, '$.dataPublicacaoPncp')    AS DATETIME))    AS data_publicacao_pncp,
+                                        SAFE_CAST(JSON_VALUE(payload, '$.dataAberturaProposta')       AS DATETIME)     AS data_abertura_proposta,
+                                        SAFE_CAST(JSON_VALUE(payload, '$.dataEncerramentoProposta')   AS DATETIME)     AS data_encerramento_proposta,
+                                        ROW_NUMBER() OVER (PARTITION BY id_pncp ORDER BY ingest_time DESC) AS rn
+                                FROM \`${GCP_PROJECT_ID}.${DATASET_STG}.${TABLE_CONTRATACOES_RAW}\`
+                                WHERE id_pncp IS NOT NULL
+                        ) AS S
+                        ON T.id_pncp = S.id_pncp AND S.rn = 1
+                        WHEN MATCHED AND T.hash_payload != S.hash_payload THEN UPDATE SET
+                                T.hash_payload = S.hash_payload, T.cnpj_orgao = S.cnpj_orgao,
+                                T.nome_orgao = S.nome_orgao, T.nome_unidade_orgao = S.nome_unidade_orgao,
+                                T.modalidade_nome = S.modalidade_nome, T.modo_disputa_nome = S.modo_disputa_nome,
+                                T.situacao_nome = S.situacao_nome, T.objeto_compra = S.objeto_compra,
+                                T.tipo_beneficio = S.tipo_beneficio, T.criterio_julgamento = S.criterio_julgamento,
+                                T.amparo_legal = S.amparo_legal, T.categoria_processo = S.categoria_processo,
+                                T.valor_total_estimado = S.valor_total_estimado,
+                                T.data_publicacao_pncp = S.data_publicacao_pncp,
+                                T.data_abertura_proposta = S.data_abertura_proposta,
+                                T.data_encerramento_proposta = S.data_encerramento_proposta,
+                                T.ingest_time = S.ingest_time
+                        WHEN NOT MATCHED BY TARGET AND S.rn = 1 THEN INSERT (
+                                id_pncp, uf, hash_payload, ingest_time,
+                                cnpj_orgao, nome_orgao, nome_unidade_orgao,
+                                modalidade_nome, modo_disputa_nome, situacao_nome, objeto_compra,
+                                tipo_beneficio, criterio_julgamento, amparo_legal, categoria_processo,
+                                valor_total_estimado,
+                                data_publicacao_pncp, data_abertura_proposta, data_encerramento_proposta
+                        ) VALUES (
+                                S.id_pncp, S.uf, S.hash_payload, S.ingest_time,
+                                S.cnpj_orgao, S.nome_orgao, S.nome_unidade_orgao,
+                                S.modalidade_nome, S.modo_disputa_nome, S.situacao_nome, S.objeto_compra,
+                                S.tipo_beneficio, S.criterio_julgamento, S.amparo_legal, S.categoria_processo,
+                                S.valor_total_estimado,
+                                S.data_publicacao_pncp, S.data_abertura_proposta, S.data_encerramento_proposta
+                        )
+                `;
+                const [job] = await bq.createQueryJob({ query: mergeQuery, location: 'US' });
+                const [_rows] = await job.getQueryResults();
+                const stats = job.metadata?.statistics?.query;
+                logger.info(`[scheduler/merge] MERGE concluído. rowsAffected=${stats?.numDmlAffectedRows ?? 'n/a'}`);
+                return res.status(200).json({
+                        success: true,
+                        message: "MERGE stg → core executado com sucesso.",
+                        rowsAffected: stats?.numDmlAffectedRows ?? null,
+                });
+        } catch (error: any) {
+                await logErrorToBigQuery({ funcao_ou_componente: "scheduler/merge", mensagem: error.message, stack_trace: error.stack });
                 return res.status(500).json({ message: "Erro ao executar MERGE.", error: error.message });
         }
 });
