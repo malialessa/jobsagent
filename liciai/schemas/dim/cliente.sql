@@ -20,6 +20,9 @@ CREATE TABLE IF NOT EXISTS `uniquex-487718.dim.cliente` (
   limite_produtos         INT64              OPTIONS(description='Máximo de itens no catálogo de produtos'),
   trial_inicio            TIMESTAMP          OPTIONS(description='Início do período de trial — preenchido no cadastro'),
   trial_fim               TIMESTAMP          OPTIONS(description='Fim do trial = trial_inicio + 7 dias'),
+  mp_customer_id          STRING             OPTIONS(description='ID do cliente no Mercado Pago (payer_id) — preenchido após primeira assinatura'),
+  mp_subscription_id      STRING             OPTIONS(description='ID da assinatura ativa no Mercado Pago (preapproval.id)'),
+  mp_plan_id              STRING             OPTIONS(description='ID do plano contratado no Mercado Pago (MP_PLAN_ID_PRO ou MP_PLAN_ID_ENTERPRISE)'),
   data_cadastro           TIMESTAMP,
   data_ultima_modificacao TIMESTAMP
 )

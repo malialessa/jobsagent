@@ -317,7 +317,47 @@ que# LEDGER DE IMPLANTAÇÕES — LICIAI
 
 ---
 
-### [2026-03-03] — AUDITORIA: Inventário completo BQ + verificação de duplicatas
+### [2026-03-04] — FEATURE: Cloud Scheduler — ingestão e MERGE diários automáticos
+- **Autor:** GitHub Copilot (Claude Sonnet 4.6)
+- **Decisão:**
+  1. Criado `schedulerAuthMiddleware` — valida header `Authorization: Bearer SCHEDULER_SECRET`
+  2. Rota `POST /scheduler/ingest/pncp` — recebe `{ ufs?: string[] }`, itera todas as UFs chamando `coletar()` sequencialmente, retorna `{ ok, results, errors }`
+  3. Rota `POST /scheduler/merge` — executa MERGE idempotente stg→core, retorna `{ ok, rowsAffected }`
+  4. Job `liciai-pncp-ingest` (Cloud Scheduler, us-east1) — `0 3 * * *` UTC — todas as 27 UFs
+  5. Job `liciai-pncp-merge` (Cloud Scheduler, us-east1) — `0 5 * * *` UTC — MERGE
+  6. `SCHEDULER_SECRET` gerado via `openssl rand -hex 32` e armazenado em `.env.uniquex-487718`
+- **Justificativa:** Dados precisam ser frescos diáriamente sem intervenção manual; o Scheduler é a abordagem mais simples e barata para orquestrar jobs HTTP no GCP.
+- **Alternativas Consideradas:** Cloud Tasks (mais flexível mas mais complexo), Pub/Sub (overkill para 1 job/dia)
+- **Impacto:** `functions/src/index.ts`, `functions/.env.uniquex-487718`, Cloud Scheduler `uniquex-487718`
+- **Status:** ATIVO
+
+---
+
+### [2026-03-04] — FEATURE: Billing Mercado Pago — endpoints pré-configurados (aguardando credenciais)
+- **Autor:** GitHub Copilot (Claude Sonnet 4.6)
+- **Decisão:** Todos os endpoints de billing implementados como stubs funcionais. Ficam inativos enquanto `MP_ACCESS_TOKEN` estiver vazio; retornam erro 503 explicativo.
+  - `POST /billing/checkout` — cria preferência no MP Subscriptions e retorna `{ checkout_url, preference_id }`
+  - `GET /billing/status` — retorna plano + `mp_customer_id`, `mp_subscription_id`
+  - `POST /billing/webhook` — valida assinatura MP (`X-Signature`), processa eventos `payment` e `preapproval`; atualiza `dim.cliente` ao ativar/cancelar; chama `sendEmail()` (SendGrid) fire-and-forget
+  - `isMpConfigured()` — helper que verifica se `MP_ACCESS_TOKEN` está presente
+- **Para ativar:** preencher `MP_ACCESS_TOKEN`, `MP_WEBHOOK_SECRET`, `MP_PLAN_ID_PRO`, `MP_PLAN_ID_ENTERPRISE` no `.env.uniquex-487718` e fazer redeploy. Configurar URL do webhook no painel MP: `https://api-hdjcafpmqq-ue.a.run.app/api/billing/webhook`
+- **Referência:** https://www.mercadopago.com.br/developers/pt/docs/subscriptions/landing
+- **Impacto:** `functions/src/index.ts`, `functions/.env.uniquex-487718`, `schemas/dim/cliente.sql` (campos mp_*)
+- **Status:** PRÉ-CONFIGURADO — aguardando credenciais (P-MP-01)
+
+---
+
+### [2026-03-04] — FEATURE: Email SendGrid — endpoints pré-configurados (aguardando credenciais)
+- **Autor:** GitHub Copilot (Claude Sonnet 4.6)
+- **Decisão:** SendGrid configurado condicionalmente. Ativo somente quando `SENDGRID_API_KEY` estiver presente; silencioso (fire-and-forget) caso contrário.
+  - `sendEmail()` — helper interno, swallows exceptions, não bloqueia o webhook
+  - `POST /email/sendBemVindo` (adminAuth) — busca email em `dim.cliente`, envia email de boas-vindas
+  - `POST /email/sendAlertaOportunidades` (adminAuth) — busca N oportunidades com maior score do tenant, envia digest diário
+  - `isSgConfigured()` — helper que verifica se `SENDGRID_API_KEY` está presente
+- **Para ativar:** preencher `SENDGRID_API_KEY` e `SENDGRID_FROM_EMAIL` (domínio verificado no SendGrid) no `.env.uniquex-487718` e fazer redeploy.
+- **Referência:** https://docs.sendgrid.com/api-reference/mail-send
+- **Impacto:** `functions/src/index.ts`, `functions/.env.uniquex-487718`
+- **Status:** PRÉ-CONFIGURADO — aguardando credenciais (P-SG-01)
 - **Autor:** GitHub Copilot (Claude Sonnet 4.6)
 - **Resultado:**
   - **Datasets:** core, dim, doc, feat, log, mart, stg (7 total — conforme planejado)
@@ -360,6 +400,7 @@ que# LEDGER DE IMPLANTAÇÕES — LICIAI
 | 2026-03-03 (sessão 3) | — | hosting only | ✅ Deploy completo — DrillDown premium RadarPage |
 | 2026-03-03 (sessão 4) | — | functions:api | ✅ Deploy completo — fix JSON paths MERGE + fix URLs PNCP itens/detalhe |
 | 2026-03-03 (sessão 5) | — | functions:api + hosting | ✅ Deploy completo — OportunidadePage + NCM/sigiloso + Análise de IA |
+| 2026-03-04 (sessão 1) | — | functions:api | ✅ Deploy completo — Cloud Scheduler + Billing MP stubs + SendGrid stubs |
 
 ---
 
@@ -367,8 +408,9 @@ que# LEDGER DE IMPLANTAÇÕES — LICIAI
 
 | ID | Decisão | Urgência | Responsável |
 |---|---|---|---|
-| P-01 | Criar Cloud Scheduler para ingestão diária PNCP (03h UTC) e MERGE (05h UTC) | 🔴 Alta | — |
-| P-02 | Configurar Secret Manager para Stripe keys | 🔴 Alta | — |
+| ~~P-01~~ | ~~Criar Cloud Scheduler~~ | ✅ CONCLUÍDO (2026-03-04) | — |
+| P-MP-01 | Criar conta Mercado Pago, gerar `MP_ACCESS_TOKEN` e `MP_WEBHOOK_SECRET`, criar planos Pro/Enterprise, preencher `.env` e redeploy | 🔴 Alta | — |
+| P-SG-01 | Criar conta SendGrid, verificar domínio `liciai.com.br`, gerar `SENDGRID_API_KEY`, preencher `.env` e redeploy | 🔴 Alta | — |
 | P-03 | Criar fila Cloud Tasks `pncp-backfill-queue` | 🟡 Média | — |
 | P-04 | Verificar se bucket `itensx` existe e configurá-lo corretamente | 🟡 Média | — |
 | P-05 | Versionar schemas de dim.cliente_configuracoes, usuario_tenant_role, prompt_versions, assinaturas_eventos | 🟡 Média | — |
@@ -412,3 +454,5 @@ que# LEDGER DE IMPLANTAÇÕES — LICIAI
     - Payload usa camelCase: `modalidadeNome`, `modoDisputaNome`, `situacaoCompraNome`. NÃO usar `nomeModalidadeContratacao` nem `nomeModoDisputa`.
 
 13. **MERGE JSON PATHS — SEMPRE VERIFICAR PAYLOAD ANTES**: Antes de escrever `JSON_VALUE(payload, '$.campo')` no MERGE, confirmar o nome real via `bq query "SELECT SUBSTR(TO_JSON_STRING(payload), 1, 500) FROM stg.pncp_contratacoes_raw LIMIT 1"`. O payload usa camelCase PNCP oficial — não inventar nomes de campo.
+
+14. **MP E SENDGRID SÃO CONDICIONAIS**: Os endpoints `/billing/*` e `/email/*` e o helper `sendEmail()` só funcionam se `MP_ACCESS_TOKEN` e `SENDGRID_API_KEY` estiverem presentes no `.env`. Sem as chaves, retornam 503 (billing) ou são silenciosos (email). NUNCA assumir que estão ativos sem verificar o `.env.uniquex-487718`. Para ativar: ver P-MP-01 e P-SG-01 na tabela de pendentes.

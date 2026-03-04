@@ -22,8 +22,11 @@
 | Vertex AI Embedding | `text-embedding-005` | `us-central1` | ✅ ATIVO |
 | Vertex AI LLM | `gemini-2.5-pro` | `us-central1` | ✅ ATIVO |
 | Cloud Tasks Queue | `pncp-backfill-queue` | `us-east1` | ⚠️ criar antes de usar iniciarBackfill |
-| Secret Manager | — | — | ❌ NÃO CRIADO (Sprint 2) |
-| Cloud Scheduler | — | — | ❌ NÃO CRIADO (Sprint 2) |
+| Secret Manager | — | — | ❌ NÃO CRIADO — mover API keys para cá (Sprint 2) |
+| Cloud Scheduler job | `liciai-pncp-ingest` | `us-east1` | ✅ ATIVO — 03h UTC, POST /scheduler/ingest/pncp |
+| Cloud Scheduler job | `liciai-pncp-merge` | `us-east1` | ✅ ATIVO — 05h UTC, POST /scheduler/merge |
+| Mercado Pago (billing) | — | — | ⏳ PENDENTE — endpoints prontos, falta credenciais (P-MP-01) |
+| SendGrid (email) | — | — | ⏳ PENDENTE — endpoints prontos, falta credenciais (P-SG-01) |
 
 ---
 
@@ -70,7 +73,7 @@
 | `cliente_configuracoes` | (sem schema versionado) | Palavras-chave de interesse por tenant |
 | `usuario_tenant_role` | (sem schema versionado) | Controle de multi-usuário por tenant (Sprint futuro) |
 | `prompt_versions` | (sem schema versionado) | Versionamento de prompts da IA |
-| `assinaturas_eventos` | (sem schema versionado) | Eventos de billing/stripe |
+| `assinaturas_eventos` | (sem schema versionado) | Eventos de billing/Mercado Pago — webhook IPN |
 
 ⚠️ **TODO:** versionar schemas de dim.cliente_configuracoes, dim.usuario_tenant_role, dim.prompt_versions, dim.assinaturas_eventos
 
@@ -155,8 +158,30 @@
 | POST | `/analisarErroComIA` | Análise de erro específico com Gemini |
 | GET | `/getProjectDna` | Retorna DNA do projeto (core.project_dna WHERE id='main') |
 | POST | `/updateProjectDna` | Atualiza DNA do projeto |
-| POST | `/admin/ingest/pncp` | Dispara coleta PNCP para 1 UF (Cloud Scheduler) |
-| POST | `/admin/transform/merge` | Executa MERGE stg→core (Cloud Scheduler) |
+| POST | `/admin/ingest/pncp` | Dispara coleta PNCP para 1 UF (manual) |
+| POST | `/admin/transform/merge` | Executa MERGE stg→core (manual) |
+
+#### Endpoints Billing — Mercado Pago (userAuthMiddleware)
+
+| Método | Rota | Status | Função |
+|---|---|---|---|
+| POST | `/billing/checkout` | ⏳ PENDENTE (P-MP-01) | Cria preferência MP e retorna `checkout_url` |
+| GET | `/billing/status` | ⏳ PENDENTE (P-MP-01) | Retorna plano + `mp_customer_id`, `mp_subscription_id` |
+| POST | `/billing/webhook` | ⏳ PENDENTE (P-MP-01) | Recebe IPN do MP; ativa/cancela plano em `dim.cliente` |
+
+#### Endpoints Email — SendGrid (adminAuthMiddleware)
+
+| Método | Rota | Status | Função |
+|---|---|---|---|
+| POST | `/email/sendBemVindo` | ⏳ PENDENTE (P-SG-01) | Envia email de boas-vindas ao usuário |
+| POST | `/email/sendAlertaOportunidades` | ⏳ PENDENTE (P-SG-01) | Envia as N melhores oportunidades do dia |
+
+#### Endpoints Scheduler (schedulerAuthMiddleware — SCHEDULER_SECRET)
+
+| Método | Rota | Job | Função |
+|---|---|---|---|
+| POST | `/scheduler/ingest/pncp` | `liciai-pncp-ingest` (03h UTC) | Coleta PNCP para todas as 27 UFs |
+| POST | `/scheduler/merge` | `liciai-pncp-merge` (05h UTC) | MERGE idempotente stg→core |
 
 ### 3.2 Exports (Cloud Functions independentes)
 
@@ -179,8 +204,13 @@
 | `BIGQUERY_LOCATION` | hardcoded | `"US"` | Não |
 | `ADMIN_UIDS` | `.env.uniquex-487718` | fallback hardcoded | ⚠️ Sensível — gerenciar via env |
 | `KNOWLEDGE_BUCKET` | `.env.uniquex-487718` | `"itensx"` | Não |
-| Stripe Secret Key | ❌ NÃO CRIADO | — | 🔴 Alto — USAR Secret Manager |
-| Stripe Webhook Secret | ❌ NÃO CRIADO | — | 🔴 Alto — USAR Secret Manager |
+| `SCHEDULER_SECRET` | `.env.uniquex-487718` | gerado via `openssl rand -hex 32` | ⚠️ Sensível |
+| `MP_ACCESS_TOKEN` | `.env.uniquex-487718` | `""` (inativo) | 🔴 Alto — PENDENTE (P-MP-01) |
+| `MP_WEBHOOK_SECRET` | `.env.uniquex-487718` | `""` (inativo) | 🔴 Alto — PENDENTE (P-MP-01) |
+| `MP_PLAN_ID_PRO` | `.env.uniquex-487718` | `""` (inativo) | Criar no painel MP |
+| `MP_PLAN_ID_ENTERPRISE` | `.env.uniquex-487718` | `""` (inativo) | Criar no painel MP |
+| `SENDGRID_API_KEY` | `.env.uniquex-487718` | `""` (inativo) | 🔴 Alto — PENDENTE (P-SG-01) |
+| `SENDGRID_FROM_EMAIL` | `.env.uniquex-487718` | `"noreply@liciai.com.br"` | Domínio deve ser verificado no SendGrid |
 
 ---
 
@@ -319,7 +349,8 @@ functions/src/
 | Firebase Auth | Autenticação de usuários | SDK Firebase Admin | ✅ |
 | Firebase Hosting | Servir frontend | Firebase deploy | ✅ |
 | Cloud Tasks | Backfill histórico de licitações | SA via ADC | ⚠️ fila não criada |
-| Stripe | Billing e pagamentos | Secret Manager | ❌ Sprint 2 |
+| Mercado Pago | Billing e pagamentos (assinaturas recorrentes) | `MP_ACCESS_TOKEN` | ⏳ PENDENTE (P-MP-01) |
+| SendGrid | Email transacional (boas-vindas, alertas) | `SENDGRID_API_KEY` | ⏳ PENDENTE (P-SG-01) |
 | Transfere.gov API | Coleta de convênios | — | ❌ Sprint 3 |
 | Compras.gov API | Compras MPOG | — | ❌ Sprint 3 |
 
