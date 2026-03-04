@@ -1,4 +1,4 @@
-# LEDGER DE IMPLANTAÇÕES — LICIAI
+que# LEDGER DE IMPLANTAÇÕES — LICIAI
 > **Propósito:** Registro imutável e cronológico de TODA decisão arquitetural, implementação e mudança relevante.  
 > **Regras:**
 > - NUNCA edite entradas existentes — apenas ADICIONE novas.
@@ -336,6 +336,21 @@
 
 ---
 
+### [2026-03-03] — FEATURE: OportunidadePage fullscreen + Análise de IA on-demand
+- **Autor:** GitHub Copilot (Claude Sonnet 4.6)
+- **Decisão:** Criadas as seguintes funcionalidades:
+  1. **`OportunidadePage.tsx`** — página dedicada em `/oportunidade/:id` com hero compacto (tipografia downscaled: `text-xl→text-sm`, `text-2xl→text-lg` para ficar consistente com o estilo do painel), grid de metadados em 2 colunas e listagem de itens com busca client-side.
+  2. **Botão "Análise de IA"** — trigger manual (on-demand) que chama `/analyzeOportunidade`. Exibe spinner durante carregamento; resultado renderizado em card dourado abaixo do hero.
+  3. **Endpoint `/analyzeOportunidade`** (POST, `userAuthMiddleware`) — busca dados da `core.contratacoes` via BQ, monta prompt estruturado com objeto, modalidade, valor, prazo e score, e chama `gemini-2.5-pro` (temperature=0.3, maxOutputTokens=1024). Retorna `{ analysis: string }`.
+  4. **Botões de acesso**: ArrowUpRight hover em `LineRow` do Radar + botão "Completo" com Maximize2 no cabeçalho do `DetalhePanel`.
+  5. **Itens com NCM, sigiloso e busca**: `ItensTab` reescrita com search, badge NCM/NBS, flag 🔒 para `orcamentoSigiloso`, badge `materialOuServicoNome`.
+- **Justificativa:** IA on-demand evita gastos desnecessários de tokens Gemini — só gera quando o usuário explicitamente clicar.
+- **Alternativas Consideradas:** Geração automática ao abrir a página — descartada por custo e latência.
+- **Impacto:** `frontend/src/pages/OportunidadePage.tsx`, `frontend/src/app/App.tsx`, `frontend/src/pages/RadarPage.tsx`, `frontend/src/lib/api.ts`, `functions/src/index.ts`
+- **Status:** ATIVO
+
+---
+
 ## HISTÓRICO DE DEPLOY
 
 | Data | Versão | Componentes | Resultado |
@@ -344,6 +359,7 @@
 | 2026-03-03 (sessão 2) | — | hosting only | ✅ Deploy completo — fix URL emulador + formatDate |
 | 2026-03-03 (sessão 3) | — | hosting only | ✅ Deploy completo — DrillDown premium RadarPage |
 | 2026-03-03 (sessão 4) | — | functions:api | ✅ Deploy completo — fix JSON paths MERGE + fix URLs PNCP itens/detalhe |
+| 2026-03-03 (sessão 5) | — | functions:api + hosting | ✅ Deploy completo — OportunidadePage + NCM/sigiloso + Análise de IA |
 
 ---
 

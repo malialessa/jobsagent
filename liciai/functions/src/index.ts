@@ -570,22 +570,29 @@ const oportunidadesQuotaMiddleware = (req: express.Request, res: express.Respons
 app.get('/healthz', (_req, res) => res.status(200).send('ok'));
 
 // Rotas Públicas
+// ── Helper: filtros comuns ─────────────────────────────────────────────────
+function applyCommonFilters(clauses: string[], params: Record<string, any>, q: any, uf: any, modalidade?: any, valor_min?: any, valor_max?: any, prazo_max?: any, beneficio?: any, situacao?: any) {
+        if (uf && typeof uf === 'string' && uf.trim()) { clauses.push("uf = @uf"); params.uf = uf.trim().toUpperCase(); }
+        if (q && typeof q === 'string' && q.trim()) { clauses.push("LOWER(objeto_compra) LIKE LOWER(@q)"); params.q = `%${q.trim()}%`; }
+        if (modalidade && typeof modalidade === 'string' && modalidade.trim()) { clauses.push("LOWER(modalidade_nome) LIKE LOWER(@modalidade)"); params.modalidade = `%${modalidade.trim().replace(/_/g,' ')}%`; }
+        const vm = Number(valor_min); if (!isNaN(vm) && vm > 0) { clauses.push("valor_total_estimado >= @valor_min"); params.valor_min = vm; }
+        const vx = Number(valor_max); if (!isNaN(vx) && vx > 0) { clauses.push("(valor_total_estimado IS NULL OR valor_total_estimado <= @valor_max)"); params.valor_max = vx; }
+        const pm = Number(prazo_max); if (!isNaN(pm) && pm > 0) { clauses.push("TIMESTAMP_DIFF(data_encerramento_proposta, CURRENT_TIMESTAMP(), DAY) BETWEEN 0 AND @prazo_max"); params.prazo_max = pm; }
+        if (beneficio === 'me_epp') { clauses.push("(tipo_beneficio LIKE '%ME%' OR tipo_beneficio LIKE '%EPP%')"); }
+        else if (beneficio === 'sem') { clauses.push("(tipo_beneficio IS NULL OR (tipo_beneficio NOT LIKE '%ME%' AND tipo_beneficio NOT LIKE '%EPP%'))"); }
+        if (situacao === 'ativa') { clauses.push("(LOWER(situacao_nome) LIKE '%aberta%' OR LOWER(situacao_nome) LIKE '%ativa%' OR LOWER(situacao_nome) LIKE '%publicad%')"); }
+        else if (situacao === 'suspensa') { clauses.push("LOWER(situacao_nome) LIKE '%suspensa%'"); }
+}
+
 app.get('/getOportunidades', async (req, res) => {
         try {
-                const { uf, q, limit: limitStr, offset: offsetStr } = req.query;
+                const { uf, q, modalidade, valor_min, valor_max, prazo_max, beneficio, situacao, limit: limitStr, offset: offsetStr } = req.query;
                 const limit = Math.min(parseInt(limitStr as string) || 21, 100); // cap em 100 por segurança
                 const offset = parseInt(offsetStr as string) || 0;
                 let query = `SELECT * FROM \`${GCP_PROJECT_ID}.${DATASET_CORE}.${VIEW_OPORTUNIDADES}\``;
                 const whereClauses: string[] = [];
                 const queryParams: Record<string, any> = {};
-                if (uf && typeof uf === 'string' && uf.trim()) {
-                        whereClauses.push("uf = @uf");
-                        queryParams.uf = uf.trim().toUpperCase();
-                }
-                if (q && typeof q === 'string' && q.trim()) {
-                        whereClauses.push("LOWER(objeto_compra) LIKE LOWER(@q)");
-                        queryParams.q = `%${q.trim()}%`;
-                }
+                applyCommonFilters(whereClauses, queryParams, q, uf, modalidade, valor_min, valor_max, prazo_max, beneficio, situacao);
                 if (whereClauses.length > 0) query += ` WHERE ${whereClauses.join(" AND ")}`;
                 query += " ORDER BY data_encerramento_proposta ASC LIMIT @limit OFFSET @offset";
                 queryParams.limit = limit;
@@ -625,20 +632,13 @@ app.post('/logError', async (req, res) => {
 app.get('/getScoredOportunidades', userAuthMiddleware, userPlanMiddleware, oportunidadesQuotaMiddleware, async (req, res) => {
         try {
                 const uid = req.uid!;
-                const { uf, q, limit: limitStr, offset: offsetStr } = req.query;
+                const { uf, q, modalidade, valor_min, valor_max, prazo_max, beneficio, situacao, limit: limitStr, offset: offsetStr } = req.query;
                 const limit = Math.min(parseInt(limitStr as string) || 21, 100); // cap em 100 por segurança
                 const offset = parseInt(offsetStr as string) || 0;
                 let query = `SELECT * FROM \`${GCP_PROJECT_ID}.${DATASET_CORE}.${TABLE_FUNCTION_SCORED}\`(@cliente_id)`;
                 const whereClauses: string[] = [];
                 const queryParams: Record<string, any> = { cliente_id: uid };
-                if (uf && typeof uf === 'string' && uf.trim()) {
-                        whereClauses.push("uf = @uf");
-                        queryParams.uf = uf.trim().toUpperCase();
-                }
-                if (q && typeof q === 'string' && q.trim()) {
-                        whereClauses.push("LOWER(objeto_compra) LIKE LOWER(@q)");
-                        queryParams.q = `%${q.trim()}%`;
-                }
+                applyCommonFilters(whereClauses, queryParams, q, uf, modalidade, valor_min, valor_max, prazo_max, beneficio, situacao);
                 if (whereClauses.length > 0) {
                         query = `SELECT * FROM (${query}) AS scored_ops WHERE ${whereClauses.join(" AND ")}`;
                 }
@@ -1492,7 +1492,11 @@ app.get('/getItensPNCP', userAuthMiddleware, async (req, res) => {
                         tipoBeneficioNome:        it.tipoBeneficioNome,
                         situacaoCompraItemNome:   it.situacaoCompraItemNome,
                         materialOuServico:        it.materialOuServico,
+                        materialOuServicoNome:    it.materialOuServicoNome,
                         criterioJulgamentoNome:   it.criterioJulgamentoNome,
+                        orcamentoSigiloso:        it.orcamentoSigiloso ?? false,
+                        ncmNbsCodigo:             it.ncmNbsCodigo ?? null,
+                        ncmNbsDescricao:          it.ncmNbsDescricao ?? null,
                 }));
                 return res.json({ items });
         } catch (error: any) {
@@ -1501,8 +1505,125 @@ app.get('/getItensPNCP', userAuthMiddleware, async (req, res) => {
         }
 });
 
+// ── Análise de IA para uma oportunidade ──────────────────────────────────────
+app.post('/analyzeOportunidade', userAuthMiddleware, async (req, res) => {
+        try {
+                const uid = req.uid!;
+                const idPncp = String(req.body?.id_pncp || "").trim();
+                if (!idPncp) return res.status(400).json({ message: "id_pncp é obrigatório." });
+
+                // ── Cache: buscar análise recente (< 24h) ───────────────────
+                try {
+                        await bq.query({ query: `CREATE TABLE IF NOT EXISTS \`${GCP_PROJECT_ID}.log.analises_ia\` (id STRING, cliente_id STRING NOT NULL, id_pncp STRING NOT NULL, analysis STRING, criado_em TIMESTAMP) OPTIONS(description='Cache de análises geradas pela IA')`, location: BIGQUERY_LOCATION });
+                        const [cached] = await bq.query({ query: `SELECT analysis FROM \`${GCP_PROJECT_ID}.log.analises_ia\` WHERE cliente_id = @uid AND id_pncp = @id AND TIMESTAMP_DIFF(CURRENT_TIMESTAMP(), criado_em, HOUR) < 24 ORDER BY criado_em DESC LIMIT 1`, params: { uid, id: idPncp }, location: BIGQUERY_LOCATION });
+                        if (cached?.[0]?.analysis) {
+                                return res.json({ analysis: cached[0].analysis, cached: true });
+                        }
+                } catch { /* ignora erro de cache — gera de qualquer forma */ }
+
+                // Buscar dados da contratação no BQ
+                const query = `SELECT * FROM \`${GCP_PROJECT_ID}.${DATASET_CORE}.contratacoes\` WHERE id_pncp = @id LIMIT 1`;
+                const [rows] = await bq.query({ query, params: { id: idPncp }, location: BIGQUERY_LOCATION });
+
+                const c = rows?.[0];
+                if (!c) return res.status(404).json({ message: "Oportunidade não encontrada." });
+
+                const valor = c.valor_total_estimado
+                        ? `R$ ${Number(c.valor_total_estimado).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`
+                        : "não informado";
+                const prazo = c.data_encerramento_proposta?.value ?? c.data_encerramento_proposta ?? "não informado";
+
+                const prompt = `Você é um especialista em licitações públicas brasileiras. Analise a seguinte oportunidade e forneça uma análise concisa em português.
+
+Dados da licitação:
+- Objeto: ${c.objeto_compra ?? ""}
+- Modalidade: ${c.modalidade_nome ?? ""}
+- Modo de Disputa: ${c.modo_disputa_nome ?? ""}
+- Órgão: ${c.nome_orgao ?? ""} (${c.uf ?? ""})
+- Valor Estimado: ${valor}
+- Score de Oportunidade: ${c.score_oportunidade ?? "não calculado"}/100
+- Prazo de Encerramento: ${prazo}
+- Situação: ${c.situacao_nome ?? ""}
+
+Forneça uma análise com 3-4 parágrafos curtos cobrindo:
+1. Contexto e resumo do que está sendo licitado
+2. Avaliação financeira e atratividade
+3. Pontos de atenção (prazo, modalidade, riscos)
+4. Recomendação objetiva (vale participar? por quê?)
+
+Seja direto, factual e use linguagem técnica adequada. Não invente informações além das fornecidas.`;
+
+                const vertex_ai = new VertexAI({ project: GCP_PROJECT_ID, location: FUNCTIONS_REGION });
+                const model = vertex_ai.getGenerativeModel({
+                        model: "gemini-2.5-pro",
+                        generationConfig: { temperature: 0.3, maxOutputTokens: 1024 } as any,
+                });
+                const result: any = await executeWithRetry(() =>
+                        model.generateContent({ contents: [{ role: "user", parts: [{ text: prompt }] }] })
+                );
+                const analysis: string = result?.response?.candidates?.[0]?.content?.parts?.[0]?.text ?? "";
+                if (!analysis) return res.status(500).json({ message: "IA retornou resposta vazia." });
+
+                // Salvar no cache assíncronamente (não bloqueia resposta)
+                bq.query({ query: `INSERT INTO \`${GCP_PROJECT_ID}.log.analises_ia\` VALUES (GENERATE_UUID(), @uid, @id, @analysis, CURRENT_TIMESTAMP())`, params: { uid: req.uid ?? "anon", id: idPncp, analysis }, location: BIGQUERY_LOCATION }).catch(() => {});
+
+                return res.json({ analysis });
+        } catch (error: any) {
+                await logErrorToBigQuery({ funcao_ou_componente: "analyzeOportunidade", mensagem: error.message, stack_trace: error.stack });
+                return res.status(500).json({ message: "Erro ao gerar análise de IA.", error: error.message });
+        }
+});
+
+// ── Favoritar oportunidades ───────────────────────────────────────────────────
+const DDL_FAVORITOS = `CREATE TABLE IF NOT EXISTS \`${GCP_PROJECT_ID}.dim.favoritos\` (cliente_id STRING NOT NULL, id_pncp STRING NOT NULL, criado_em TIMESTAMP) OPTIONS(description='Oportunidades favoritadas por usuário')`;
+
+app.post('/toggleFavorito', userAuthMiddleware, async (req, res) => {
+        try {
+                const uid = req.uid!;
+                const idPncp = String(req.body?.id_pncp || "").trim();
+                if (!idPncp) return res.status(400).json({ message: "id_pncp é obrigatório." });
+                await bq.query({ query: DDL_FAVORITOS, location: BIGQUERY_LOCATION });
+                const [rows] = await bq.query({ query: `SELECT 1 FROM \`${GCP_PROJECT_ID}.dim.favoritos\` WHERE cliente_id = @uid AND id_pncp = @id LIMIT 1`, params: { uid, id: idPncp }, location: BIGQUERY_LOCATION });
+                if (rows.length > 0) {
+                        await bq.query({ query: `DELETE FROM \`${GCP_PROJECT_ID}.dim.favoritos\` WHERE cliente_id = @uid AND id_pncp = @id`, params: { uid, id: idPncp }, location: BIGQUERY_LOCATION });
+                        return res.json({ favorited: false });
+                } else {
+                        await bq.query({ query: `INSERT INTO \`${GCP_PROJECT_ID}.dim.favoritos\` VALUES (@uid, @id, CURRENT_TIMESTAMP())`, params: { uid, id: idPncp }, location: BIGQUERY_LOCATION });
+                        return res.json({ favorited: true });
+                }
+        } catch (error: any) {
+                await logErrorToBigQuery({ funcao_ou_componente: "toggleFavorito", cliente_id: req.uid, mensagem: error.message, stack_trace: error.stack });
+                return res.status(500).json({ message: "Erro ao favoritar.", error: error.message });
+        }
+});
+
+app.get('/getFavoritos', userAuthMiddleware, async (req, res) => {
+        try {
+                const uid = req.uid!;
+                await bq.query({ query: DDL_FAVORITOS, location: BIGQUERY_LOCATION });
+                const [rows] = await bq.query({ query: `SELECT id_pncp FROM \`${GCP_PROJECT_ID}.dim.favoritos\` WHERE cliente_id = @uid ORDER BY criado_em DESC`, params: { uid }, location: BIGQUERY_LOCATION });
+                return res.json({ favoritos: rows.map((r: any) => r.id_pncp) });
+        } catch (error: any) {
+                await logErrorToBigQuery({ funcao_ou_componente: "getFavoritos", cliente_id: req.uid, mensagem: error.message, stack_trace: error.stack });
+                return res.status(500).json({ message: "Erro ao buscar favoritos.", error: error.message });
+        }
+});
+
+// ── Notificações: contagem de novas oportunidades ────────────────────────────
+app.get('/countNovas', userAuthMiddleware, async (req, res) => {
+        try {
+                const since = String(req.query.since || "").trim();
+                if (!since) return res.json({ count: 0 });
+                const [rows] = await bq.query({ query: `SELECT COUNT(*) AS cnt FROM \`${GCP_PROJECT_ID}.${DATASET_CORE}.contratacoes\` WHERE ingest_time > TIMESTAMP(@since)`, params: { since }, location: BIGQUERY_LOCATION });
+                return res.json({ count: Number(rows?.[0]?.cnt ?? 0) });
+        } catch {
+                return res.json({ count: 0 });
+        }
+});
+
 const root = express();
 root.use('/api', app);
+
 export const api = onRequest(
         {
                 memory: "2GiB", // <-- AUMENTA A MEMÓRIA E A CPU

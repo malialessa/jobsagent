@@ -4,8 +4,8 @@
     "runtime": "nodejs20"
   },
   "hosting": {
-    "site": "liciai1",
-    "public": "public",
+    "site": "liciai-uniquex-487718",
+    "public": "frontend/dist",
     "ignore": [
       "firebase.json",
       "**/.*",
@@ -14,8 +14,8 @@
     "rewrites": [
       {
         "source": "/api/**",
-        "function": {
-          "functionId": "api",
+        "run": {
+          "serviceId": "api",
           "region": "us-east1"
         }
       },
@@ -24,9 +24,5 @@
         "destination": "/index.html"
       }
     ]
-  },
-  "storage": {
-    "bucket": "sharp-footing-475513-c7.appspot.com",
-    "rules": "storage.rules"
   }
 }

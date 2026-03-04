@@ -1,0 +1,31 @@
+# Node
+**/node_modules/
+npm-debug.log*
+package-lock.json
+
+# Build outputs
+**/dist/
+**/build/
+**/*.js.map
+**/lib/
+
+# Firebase
+**/.firebase/
+**/.firebaserc
+
+# Env files
+**/.env
+**/.env.*
+!**/.env.example
+
+# Python
+**/__pycache__/
+*.pyc
+*.pyo
+**/.venv/
+**/venv/
+
+# Editor
+.DS_Store
+.vscode/
+*.swp
