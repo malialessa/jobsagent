@@ -493,12 +493,13 @@ function Field({ label, value, loading: l }: { label: string; value?: string | n
 
 // ─── CopyButton ──────────────────────────────────────────────────────────────
 
-function CopyButton({ value }: { value: string }) {
+function CopyButton({ value, onCopy }: { value: string; onCopy?: () => void }) {
   const [copied, setCopied] = useState(false);
   const copy = () => {
     navigator.clipboard.writeText(value).then(() => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
+      onCopy?.(); // Callback opcional para telemetria
     });
   };
   return (
@@ -926,7 +927,12 @@ function DetalhePanel({
                   <p className="text-[9px] font-extrabold uppercase tracking-widest text-[var(--muted)] opacity-50">ID PNCP</p>
                   <p className="mt-0.5 break-all text-[10px] font-mono text-[var(--muted)]">{idPncp || "—"}</p>
                 </div>
-                {idPncp && <CopyButton value={idPncp} />}
+                {idPncp && (
+                  <CopyButton
+                    value={idPncp}
+                    onCopy={() => api.logShare(idPncp, "copy_id").catch(() => {})}
+                  />
+                )}
               </div>
             </div>
           </>
@@ -1015,20 +1021,37 @@ function PremiumFilterBar({
   const [expanded, setExpanded] = useState(false);
   const active = activeFilterCount(filters);
 
-  const pill = (label: string, value: string, field: keyof FilterState) => (
-    <button
-      key={value}
-      onClick={() => onChange({ [field]: filters[field] === value ? "" : value })}
-      className={cn(
-        "rounded-lg border px-2.5 py-1 text-xs font-bold transition-colors whitespace-nowrap",
-        filters[field] === value
-          ? "border-[rgba(228,164,20,.4)] bg-[var(--panel-gold)] text-[var(--gold)]"
-          : "border-[var(--line)] bg-[var(--panel2)] text-[var(--muted)] hover:text-[var(--text)]"
-      )}
-    >
-      {label}
-    </button>
-  );
+  // Helper: multi-select para UF e Modalidade
+  const toggleMulti = (field: keyof FilterState, value: string) => {
+    const current = filters[field] ? filters[field].split(",").map(v => v.trim()) : [];
+    const exists = current.includes(value);
+    const next = exists
+      ? current.filter(v => v !== value)
+      : value === "" ? [] : [...current.filter(v => v !== ""), value];
+    onChange({ [field]: next.join(",") });
+  };
+
+  const pill = (label: string, value: string, field: keyof FilterState) => {
+    const isMulti = field === "uf" || field === "modalidade";
+    const selected = isMulti
+      ? filters[field].split(",").map(v => v.trim()).includes(value)
+      : filters[field] === value;
+    
+    return (
+      <button
+        key={value}
+        onClick={() => isMulti ? toggleMulti(field, value) : onChange({ [field]: filters[field] === value ? "" : value })}
+        className={cn(
+          "rounded-lg border px-2.5 py-1 text-xs font-bold transition-colors whitespace-nowrap",
+          selected
+            ? "border-[rgba(228,164,20,.4)] bg-[var(--panel-gold)] text-[var(--gold)]"
+            : "border-[var(--line)] bg-[var(--panel2)] text-[var(--muted)] hover:text-[var(--text)]"
+        )}
+      >
+        {label}
+      </button>
+    );
+  };
 
   const select = (field: keyof FilterState, options: { value: string; label: string }[]) => (
     <select
@@ -1085,48 +1108,57 @@ function PremiumFilterBar({
 
       {/* Seção expandida */}
       {expanded && (
-        <div className="border-t border-[var(--line)] bg-[var(--panel)] px-4 py-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {/* Modalidade */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-extrabold uppercase tracking-widest text-[var(--muted)]">Modalidade</label>
-            {select("modalidade", MODALIDADES)}
+        <div className="border-t border-[var(--line)] bg-[var(--panel)] px-4 py-4 flex flex-col gap-4">
+          {/* Modalidades (multi-select) */}
+          <div className="flex flex-col gap-2">
+            <label className="text-[10px] font-extrabold uppercase tracking-widest text-[var(--muted)]">Modalidades (selecione múltiplas)</label>
+            <div className="flex flex-wrap gap-1.5">
+              {MODALIDADES.filter(m => m.value !== "").map((m) => pill(m.label, m.value, "modalidade"))}
+            </div>
           </div>
-          {/* Prazo */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-extrabold uppercase tracking-widest text-[var(--muted)]">Prazo</label>
-            {select("prazo", PRAZOS)}
-          </div>
-          {/* Situação */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-extrabold uppercase tracking-widest text-[var(--muted)]">Situação</label>
-            {select("situacao", SITUACOES)}
-          </div>
-          {/* Benefício */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-extrabold uppercase tracking-widest text-[var(--muted)]">Benefício</label>
-            {select("beneficio", BENEFICIOS)}
-          </div>
-          {/* Valor mínimo */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-extrabold uppercase tracking-widest text-[var(--muted)]">Valor mínimo (R$)</label>
-            <input
-              type="number"
-              value={filters.valorMin}
-              onChange={(e) => onChange({ valorMin: e.target.value })}
-              placeholder="0"
-              className="h-8 rounded-lg border border-[var(--line)] bg-[var(--panel)] px-2.5 text-xs font-semibold text-[var(--text)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-1 focus:ring-[var(--gold)]"
-            />
-          </div>
-          {/* Valor máximo */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-[10px] font-extrabold uppercase tracking-widest text-[var(--muted)]">Valor máximo (R$)</label>
-            <input
-              type="number"
-              value={filters.valorMax}
-              onChange={(e) => onChange({ valorMax: e.target.value })}
-              placeholder="Sem limite"
-              className="h-8 rounded-lg border border-[var(--line)] bg-[var(--panel)] px-2.5 text-xs font-semibold text-[var(--text)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-1 focus:ring-[var(--gold)]"
-            />
+          
+          {/* Divider */}
+          <div className="border-t border-[var(--line)]" />
+          
+          {/* Demais filtros */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {/* Prazo */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-extrabold uppercase tracking-widest text-[var(--muted)]">Prazo</label>
+              {select("prazo", PRAZOS)}
+            </div>
+            {/* Situação */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-extrabold uppercase tracking-widest text-[var(--muted)]">Situação</label>
+              {select("situacao", SITUACOES)}
+            </div>
+            {/* Benefício */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-extrabold uppercase tracking-widest text-[var(--muted)]">Benefício</label>
+              {select("beneficio", BENEFICIOS)}
+            </div>
+            {/* Valor mínimo */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-extrabold uppercase tracking-widest text-[var(--muted)]">Valor mínimo (R$)</label>
+              <input
+                type="number"
+                value={filters.valorMin}
+                onChange={(e) => onChange({ valorMin: e.target.value })}
+                placeholder="0"
+                className="h-8 rounded-lg border border-[var(--line)] bg-[var(--panel)] px-2.5 text-xs font-semibold text-[var(--text)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-1 focus:ring-[var(--gold)]"
+              />
+            </div>
+            {/* Valor máximo */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-[10px] font-extrabold uppercase tracking-widest text-[var(--muted)]">Valor máximo (R$)</label>
+              <input
+                type="number"
+                value={filters.valorMax}
+                onChange={(e) => onChange({ valorMax: e.target.value })}
+                placeholder="Sem limite"
+                className="h-8 rounded-lg border border-[var(--line)] bg-[var(--panel)] px-2.5 text-xs font-semibold text-[var(--text)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-1 focus:ring-[var(--gold)]"
+              />
+            </div>
           </div>
         </div>
       )}
@@ -1558,7 +1590,18 @@ export function RadarPage() {
         {/* ── Chips de filtros ativos ── */}
         {(() => {
           const chips: { key: keyof FilterState; display: string }[] = [];
-          if (localFilters.modalidade) chips.push({ key: "modalidade", display: localFilters.modalidade });
+          // Multi-select: mostrar UFs e modalidades selecionadas
+          if (localFilters.uf) {
+            const ufs = localFilters.uf.split(",").map(u => u.trim()).filter(Boolean);
+            ufs.forEach(uf => chips.push({ key: "uf", display: uf }));
+          }
+          if (localFilters.modalidade) {
+            const modalidades = localFilters.modalidade.split(",").map(m => m.trim()).filter(Boolean);
+            modalidades.forEach(mod => {
+              const label = MODALIDADES.find(m => m.value === mod)?.label ?? mod;
+              chips.push({ key: "modalidade", display: label });
+            });
+          }
           if (localFilters.prazo)      chips.push({ key: "prazo",      display: PRAZOS.find(p => p.value === localFilters.prazo)?.label ?? localFilters.prazo });
           if (localFilters.valorMin)   chips.push({ key: "valorMin",   display: `≥ R$ ${Number(localFilters.valorMin).toLocaleString("pt-BR")}` });
           if (localFilters.valorMax)   chips.push({ key: "valorMax",   display: `≤ R$ ${Number(localFilters.valorMax).toLocaleString("pt-BR")}` });
@@ -1568,10 +1611,22 @@ export function RadarPage() {
           return (
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-[10px] font-extrabold uppercase tracking-widest text-[var(--muted)] opacity-60">Filtros ativos:</span>
-              {chips.map(({ key, display }) => (
+              {chips.map(({ key, display }, idx) => (
                 <button
-                  key={key}
-                  onClick={() => patchFilter({ [key]: "" } as Partial<FilterState>)}
+                  key={`${key}-${idx}`}
+                  onClick={() => {
+                    // Para multi-select, remover apenas esse valor
+                    if (key === "uf" || key === "modalidade") {
+                      const current = (localFilters[key] || "").split(",").map(v => v.trim()).filter(Boolean);
+                      const next = current.filter(v => {
+                        if (key === "uf") return v !== display;
+                        return MODALIDADES.find(m => m.label === display)?.value !== v;
+                      });
+                      patchFilter({ [key]: next.join(",") });
+                    } else {
+                      patchFilter({ [key]: "" } as Partial<FilterState>);
+                    }
+                  }}
                   className="flex items-center gap-1.5 rounded border border-[rgba(228,164,20,.4)] bg-[var(--panel-gold)] px-2 py-0.5 text-xs font-bold text-[var(--gold)] hover:opacity-80 transition-opacity"
                 >
                   {display}
@@ -1660,7 +1715,14 @@ export function RadarPage() {
                       rank={i + 1}
                       active={isActive}
                       density={density}
-                      onClick={() => setSelected(isActive ? null : op)}
+                      onClick={() => {
+                        const newState = isActive ? null : op;
+                        setSelected(newState);
+                        // Telemetria: registrar visualização quando abre detalhe
+                        if (newState && opId) {
+                          api.logView(opId).catch(() => {});
+                        }
+                      }}
                       favorited={favoritos.has(opId)}
                       onToggleFav={(e, id) => { e.stopPropagation(); toggleFav(id); }}
                       inCompare={compareList.includes(opId)}
