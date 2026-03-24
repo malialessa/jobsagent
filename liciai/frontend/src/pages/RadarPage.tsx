@@ -73,8 +73,8 @@ const FAIXAS_VALOR = [
 // ─── CRM Status por oportunidade (armazenado em localStorage) ────────────────
 const CRM_STATUSES = [
   { value: "",          label: "Sem status",        dot: "",              badge: "" },
-  { value: "interesse", label: "Interesse",          dot: "bg-sky-400",     badge: "border-sky-400/40 bg-sky-400/10 text-sky-400" },
-  { value: "proposta",  label: "Proposta enviada",   dot: "bg-amber-400",   badge: "border-amber-400/40 bg-amber-400/10 text-amber-400" },
+  { value: "interesse", label: "Interesse",          dot: "bg-violet-400",     badge: "border-violet-400/40 bg-violet-400/10 text-violet-400" },
+  { value: "proposta",  label: "Proposta enviada",   dot: "bg-violet-400",   badge: "border-violet-400/40 bg-violet-400/10 text-violet-400" },
   { value: "ganho",     label: "Ganho ✓",            dot: "bg-emerald-400", badge: "border-emerald-400/40 bg-emerald-400/10 text-emerald-400" },
   { value: "perdido",   label: "Perdido",            dot: "bg-red-400",     badge: "border-red-400/40 bg-red-400/10 text-red-400" },
 ] as const;
@@ -140,7 +140,7 @@ function ValorSlider({ valorMin, valorMax, onChange }: {
       <div className="relative h-6 flex items-center">
         <div className="absolute h-1.5 w-full rounded-full bg-[var(--line)]">
           <div
-            className="absolute h-full rounded-full bg-[var(--gold)]"
+            className="absolute h-full rounded-full bg-[var(--primary)]"
             style={{ left: `${minPct}%`, right: `${100 - maxPct}%` }}
           />
         </div>
@@ -153,7 +153,7 @@ function ValorSlider({ valorMin, valorMax, onChange }: {
             const clampedMax = Math.max(v + 10_000, maxV);
             onChange({ valorMin: v > 0 ? String(v) : "", valorMax: clampedMax < SLIDER_MAX ? String(clampedMax) : valorMax });
           }}
-          className="absolute inset-0 w-full h-full cursor-pointer appearance-none bg-transparent [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--gold)] [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-[var(--panel)] [&::-webkit-slider-thumb]:shadow-sm [&::-webkit-slider-thumb]:cursor-grab [&::-webkit-slider-runnable-track]:opacity-0"
+          className="absolute inset-0 w-full h-full cursor-pointer appearance-none bg-transparent [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--primary)] [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-[var(--panel)] [&::-webkit-slider-thumb]:shadow-sm [&::-webkit-slider-thumb]:cursor-grab [&::-webkit-slider-runnable-track]:opacity-0"
           style={{ zIndex: minV > SLIDER_MAX * 0.95 ? 5 : 3 }}
         />
         {/* Thumb max */}
@@ -165,13 +165,13 @@ function ValorSlider({ valorMin, valorMax, onChange }: {
             const clampedMin = Math.min(v - 10_000, minV);
             onChange({ valorMin: clampedMin > 0 ? String(clampedMin) : valorMin, valorMax: v < SLIDER_MAX ? String(v) : "" });
           }}
-          className="absolute inset-0 w-full h-full cursor-pointer appearance-none bg-transparent [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--gold)] [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-[var(--panel)] [&::-webkit-slider-thumb]:shadow-sm [&::-webkit-slider-thumb]:cursor-grab [&::-webkit-slider-runnable-track]:opacity-0"
+          className="absolute inset-0 w-full h-full cursor-pointer appearance-none bg-transparent [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-[var(--primary)] [&::-webkit-slider-thumb]:border-2 [&::-webkit-slider-thumb]:border-[var(--panel)] [&::-webkit-slider-thumb]:shadow-sm [&::-webkit-slider-thumb]:cursor-grab [&::-webkit-slider-runnable-track]:opacity-0"
           style={{ zIndex: 4 }}
         />
       </div>
       <div className="flex items-center justify-between text-[11px] font-bold text-[var(--muted)]">
-        <span className={cn(minV > 0 ? "text-[var(--gold)]" : "")}>{fmt(minV)}</span>
-        <span className={cn(maxV < SLIDER_MAX ? "text-[var(--gold)]" : "")}>{fmt(maxV)}</span>
+        <span className={cn(minV > 0 ? "text-[var(--primary)]" : "")}>{fmt(minV)}</span>
+        <span className={cn(maxV < SLIDER_MAX ? "text-[var(--primary)]" : "")}>{fmt(maxV)}</span>
       </div>
     </div>
   );
@@ -261,7 +261,7 @@ function situacaoCls(situacao?: string | null): string {
   if (/aberta|ativa|publicad/.test(s)) return "text-emerald-400 bg-emerald-400/10 border-emerald-400/30";
   if (/encerrada|anulada|revogada|cancelada/.test(s)) return "text-red-400 bg-red-400/10 border-red-400/30";
   if (/suspensa|suspend/.test(s)) return "text-amber-400 bg-amber-400/10 border-amber-400/30";
-  return "text-sky-400 bg-sky-400/10 border-sky-400/30";
+  return "text-violet-400 bg-violet-400/10 border-violet-400/30";
 }
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
@@ -304,9 +304,9 @@ function ScoreBar({ value }: { value?: number }) {
     : "Baixa compatibilidade";
   
   const gradientClass = value >= 80 
-    ? "from-amber-400 via-[var(--gold)] to-yellow-500"
+    ? "from-emerald-400 via-emerald-500 to-emerald-600"
     : value >= 60
-    ? "from-sky-400 via-blue-400 to-cyan-400"
+    ? "from-violet-400 via-purple-500 to-purple-600"
     : "from-gray-400 via-gray-500 to-gray-600";
   
   return (
@@ -352,7 +352,7 @@ function SituacaoDot({ s }: { s?: string | null }) {
   if (/aberta|ativa|publicad/.test(sl)) return <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" title={s} />;
   if (/suspensa|suspend/.test(sl))      return <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" title={s} />;
   if (/encerrada|anulada|revogada|cancelada/.test(sl)) return <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-400" title={s} />;
-  return <span className="inline-block h-1.5 w-1.5 rounded-full bg-sky-400" title={s} />;
+  return <span className="inline-block h-1.5 w-1.5 rounded-full bg-violet-400" title={s} />;
 }
 
 function LineRow({ op, rank, onClick, active, favorited, onToggleFav, inCompare, onToggleCompare, opId, crmStatus, onCycleCrm, density }: {
@@ -381,8 +381,8 @@ function LineRow({ op, rank, onClick, active, favorited, onToggleFav, inCompare,
         "px-4 transition-all duration-300 cursor-pointer select-none",
         comfortable ? "py-4" : "py-2.5",
         active 
-          ? "bg-gradient-to-r from-[var(--gold)]/10 via-[var(--panel2)] to-transparent border-l-2 border-l-[var(--gold)] shadow-lg shadow-[var(--gold)]/10"
-          : "hover:bg-gradient-to-r hover:from-[var(--panel2)] hover:to-transparent hover:border-l-2 hover:border-l-[var(--gold)]/50",
+          ? "bg-gradient-to-r from-[var(--primary)]/10 via-[var(--panel2)] to-transparent border-l-2 border-l-[var(--primary)] shadow-lg shadow-[var(--primary)]/10"
+          : "hover:bg-gradient-to-r hover:from-[var(--panel2)] hover:to-transparent hover:border-l-2 hover:border-l-[var(--primary)]/50",
         crm.value === "interesse" ? "border-l-2 border-l-sky-400" :
         crm.value === "proposta"  ? "border-l-2 border-l-amber-400" :
         crm.value === "ganho"     ? "border-l-2 border-l-emerald-400" :
@@ -390,7 +390,7 @@ function LineRow({ op, rank, onClick, active, favorited, onToggleFav, inCompare,
       )}
     >
       <div className={cn(
-        "absolute inset-0 bg-gradient-to-r from-[var(--gold)]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none",
+        "absolute inset-0 bg-gradient-to-r from-[var(--primary)]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none",
         active && "opacity-100"
       )} />
       
@@ -436,7 +436,7 @@ function LineRow({ op, rank, onClick, active, favorited, onToggleFav, inCompare,
               </span>
             )}
             {isTop && (
-              <span className="inline-flex items-center gap-0.5 rounded border border-[rgba(228,164,20,.4)] bg-[var(--panel-gold)] px-1.5 py-0 text-[10px] font-black text-[var(--gold)]">
+              <span className="inline-flex items-center gap-0.5 rounded border border-[rgba(139,92,246,.4)] bg-[var(--panel-primary)] px-1.5 py-0 text-[10px] font-black text-[var(--primary)]">
                 <Zap className="h-2.5 w-2.5" /> Top
               </span>
             )}
@@ -463,7 +463,7 @@ function LineRow({ op, rank, onClick, active, favorited, onToggleFav, inCompare,
         {op.valor_total_estimado ? (
           <p className={cn(
             "tabular-nums font-bold leading-none text-xs",
-            op.valor_total_estimado >= 1_000_000 ? "text-[var(--gold)]" : "text-[var(--text)]"
+            op.valor_total_estimado >= 1_000_000 ? "text-[var(--primary)]" : "text-[var(--text)]"
           )}>{formatCurrency(op.valor_total_estimado)}</p>
         ) : (
           <span className="text-[var(--muted)] opacity-40 text-xs">—</span>
@@ -516,7 +516,7 @@ function LineRow({ op, rank, onClick, active, favorited, onToggleFav, inCompare,
               className={cn(
                 "p-1 rounded transition-colors",
                 inCompare
-                  ? "text-sky-400"
+                  ? "text-violet-400"
                   : "opacity-0 group-hover:opacity-70 hover:opacity-100 text-[var(--muted)]"
               )}
             >
@@ -563,7 +563,7 @@ function CopyButton({ value, onCopy }: { value: string; onCopy?: () => void }) {
   return (
     <button
       onClick={copy}
-      className="flex items-center gap-1.5 rounded-lg border border-[var(--line)] bg-[var(--panel2)] px-2.5 py-1.5 text-xs font-bold text-[var(--muted)] transition-colors hover:border-[var(--gold)] hover:text-[var(--gold)]"
+      className="flex items-center gap-1.5 rounded-lg border border-[var(--line)] bg-[var(--panel2)] px-2.5 py-1.5 text-xs font-bold text-[var(--muted)] transition-colors hover:border-[var(--primary)] hover:text-[var(--primary)]"
     >
       {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
       {copied ? "Copiado!" : "Copiar ID"}
@@ -649,7 +649,7 @@ function ItensTab({ itens, loading, error }: { itens: ItemContratacao[]; loading
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Filtrar por descrição ou NCM…"
-            className="h-8 w-full rounded-lg border border-[var(--line)] bg-[var(--panel2)] pl-7 pr-3 text-xs font-semibold text-[var(--text)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-1 focus:ring-[var(--gold)]"
+            className="h-8 w-full rounded-lg border border-[var(--line)] bg-[var(--panel2)] pl-7 pr-3 text-xs font-semibold text-[var(--text)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
           />
         </div>
       )}
@@ -801,7 +801,7 @@ function DetalhePanel({
             {idPncp && (
               <Link
                 to={`/oportunidade/${encodeURIComponent(idPncp)}`}
-                className="flex items-center gap-1 rounded-lg bg-[var(--gold)] px-2.5 py-1 text-[11px] font-extrabold text-black shadow-sm hover:opacity-90 transition-opacity"
+                className="flex items-center gap-1 rounded-lg bg-[var(--primary)] px-2.5 py-1 text-[11px] font-extrabold text-black shadow-sm hover:opacity-90 transition-opacity"
               >
                 <Maximize2 className="h-3 w-3" />
                 Completo
@@ -830,15 +830,15 @@ function DetalhePanel({
           </div>
           {/* Score */}
           {score != null && (
-            <div className="shrink-0 flex flex-col items-center gap-1 bg-[var(--panel-gold)] rounded-xl px-3 py-2 border border-[rgba(228,164,20,.25)]">
+            <div className="shrink-0 flex flex-col items-center gap-1 bg-[var(--panel-primary)] rounded-xl px-3 py-2 border border-[rgba(139,92,246,.25)]">
               <span className={cn("text-xl font-black tabular-nums leading-none",
-                score >= 70 ? "text-[var(--gold)]" : score >= 40 ? "text-sky-400" : "text-[var(--muted)]")}>
+                score >= 70 ? "text-[var(--primary)]" : score >= 40 ? "text-violet-400" : "text-[var(--muted)]")}>
                 {score}
               </span>
               <div className="h-1 w-10 overflow-hidden rounded-full bg-[var(--panel2)]">
                 <div
                   className={cn("h-full rounded-full transition-all",
-                    score >= 70 ? "bg-[var(--gold)]" : score >= 40 ? "bg-sky-400" : "bg-[var(--muted)]")}
+                    score >= 70 ? "bg-[var(--primary)]" : score >= 40 ? "bg-violet-400" : "bg-[var(--muted)]")}
                   style={{ width: `${Math.min(score, 100)}%` }}
                 />
               </div>
@@ -862,7 +862,7 @@ function DetalhePanel({
             className={cn(
               "flex items-center gap-1.5 px-4 py-2 text-[10px] font-extrabold uppercase tracking-wider transition-colors border-b-2",
               activeTab === tab
-                ? "border-[var(--gold)] text-[var(--gold)]"
+                ? "border-[var(--primary)] text-[var(--primary)]"
                 : "border-transparent text-[var(--muted)] hover:text-[var(--text)]"
             )}
           >
@@ -880,7 +880,7 @@ function DetalhePanel({
           <button
             onClick={() => setItensExpanded(true)}
             title="Expandir em tela cheia"
-            className="ml-auto mr-2 flex items-center gap-1 rounded-lg border border-[var(--line)] px-2.5 py-1 text-[10px] font-bold text-[var(--muted)] hover:text-[var(--gold)] hover:border-[var(--gold)] transition-colors"
+            className="ml-auto mr-2 flex items-center gap-1 rounded-lg border border-[var(--line)] px-2.5 py-1 text-[10px] font-bold text-[var(--muted)] hover:text-[var(--primary)] hover:border-[var(--primary)] transition-colors"
           >
             <Expand className="h-3 w-3" /> Expandir
           </button>
@@ -889,7 +889,7 @@ function DetalhePanel({
         {pncpUrl && !( activeTab === "itens" && itens.length > 0) && (
           <a
             href={pncpUrl} target="_blank" rel="noopener noreferrer"
-            className="ml-auto flex items-center gap-1 px-3 text-[10px] font-bold text-[var(--gold)] hover:opacity-80 transition-opacity"
+            className="ml-auto flex items-center gap-1 px-3 text-[10px] font-bold text-[var(--primary)] hover:opacity-80 transition-opacity"
           >
             <ExternalLink className="h-3 w-3" /> PNCP
           </a>
@@ -897,7 +897,7 @@ function DetalhePanel({
         {pncpUrl && activeTab === "itens" && itens.length > 0 && (
           <a
             href={pncpUrl} target="_blank" rel="noopener noreferrer"
-            className="flex items-center gap-1 px-2 text-[10px] font-bold text-[var(--gold)] hover:opacity-80 transition-opacity"
+            className="flex items-center gap-1 px-2 text-[10px] font-bold text-[var(--primary)] hover:opacity-80 transition-opacity"
           >
             <ExternalLink className="h-3 w-3" />
           </a>
@@ -914,7 +914,7 @@ function DetalhePanel({
             {/* Órgão */}
             <div className="rounded-xl border border-[var(--line)] bg-[var(--panel2)] p-3 space-y-3">
               <div className="flex items-center gap-1.5">
-                <Building2 className="h-3 w-3 text-[var(--gold)] opacity-70" />
+                <Building2 className="h-3 w-3 text-[var(--primary)] opacity-70" />
                 <span className="text-[9px] font-extrabold uppercase tracking-widest text-[var(--muted)]">Órgão</span>
               </div>
               <div className="grid grid-cols-2 gap-x-3 gap-y-2">
@@ -928,7 +928,7 @@ function DetalhePanel({
             {/* Datas */}
             <div className="rounded-xl border border-[var(--line)] bg-[var(--panel2)] p-3 space-y-3">
               <div className="flex items-center gap-1.5">
-                <Calendar className="h-3 w-3 text-[var(--gold)] opacity-70" />
+                <Calendar className="h-3 w-3 text-[var(--primary)] opacity-70" />
                 <span className="text-[9px] font-extrabold uppercase tracking-widest text-[var(--muted)]">Datas</span>
               </div>
               <div className="grid grid-cols-2 gap-x-3 gap-y-2">
@@ -950,9 +950,9 @@ function DetalhePanel({
             {/* Classificação */}
             <div className="rounded-xl border border-[var(--line)] bg-[var(--panel2)] p-3 space-y-3">
               <div className="flex items-center gap-1.5">
-                <ClipboardList className="h-3 w-3 text-[var(--gold)] opacity-70" />
+                <ClipboardList className="h-3 w-3 text-[var(--primary)] opacity-70" />
                 <span className="text-[9px] font-extrabold uppercase tracking-widest text-[var(--muted)]">Classificação</span>
-                {loading && <div className="h-1.5 w-1.5 animate-ping rounded-full bg-[var(--gold)] opacity-60" />}
+                {loading && <div className="h-1.5 w-1.5 animate-ping rounded-full bg-[var(--primary)] opacity-60" />}
               </div>
               <div className="grid grid-cols-2 gap-x-3 gap-y-2">
                 <MiniField label="Modalidade" value={modalidade} full={!modoDisputa} />
@@ -1010,12 +1010,12 @@ function DetalhePanel({
           {/* Header do overlay */}
           <div className="shrink-0 flex items-center justify-between border-b border-[var(--line)] bg-[var(--panel2)] px-4 py-3">
             <div className="flex items-center gap-2">
-              <Package className="h-4 w-4 text-[var(--gold)]" />
+              <Package className="h-4 w-4 text-[var(--primary)]" />
               <span className="text-xs font-extrabold text-[var(--text)] uppercase tracking-wider">
                 Itens do processo
               </span>
               {itens.length > 0 && (
-                <span className="rounded-full border border-[rgba(228,164,20,.3)] bg-[var(--panel-gold)] px-2 py-0.5 text-[10px] font-extrabold text-[var(--gold)]">
+                <span className="rounded-full border border-[rgba(139,92,246,.3)] bg-[var(--panel-primary)] px-2 py-0.5 text-[10px] font-extrabold text-[var(--primary)]">
                   {itens.length} ite{itens.length !== 1 ? "ns" : "m"}
                 </span>
               )}
@@ -1024,7 +1024,7 @@ function DetalhePanel({
               {pncpUrl && (
                 <a
                   href={pncpUrl} target="_blank" rel="noopener noreferrer"
-                  className="flex items-center gap-1 rounded-lg border border-[var(--line)] px-2.5 py-1 text-[10px] font-bold text-[var(--muted)] hover:text-[var(--gold)] transition-colors"
+                  className="flex items-center gap-1 rounded-lg border border-[var(--line)] px-2.5 py-1 text-[10px] font-bold text-[var(--muted)] hover:text-[var(--primary)] transition-colors"
                 >
                   <ExternalLink className="h-3 w-3" /> PNCP
                 </a>
@@ -1105,8 +1105,8 @@ function PremiumFilterBar({
           "transition-all duration-300 ease-out",
           "hover:scale-105 hover:-translate-y-0.5",
           selected
-            ? "border-[var(--gold)]/40 bg-gradient-to-br from-[var(--gold)]/20 to-[var(--gold)]/10 text-[var(--gold)] shadow-md shadow-[var(--gold)]/20"
-            : "border-[var(--line)] bg-[var(--panel2)] text-[var(--muted)] hover:border-[var(--gold)]/20 hover:text-[var(--text)]"
+            ? "border-[var(--primary)]/40 bg-gradient-to-br from-[var(--primary)]/20 to-[var(--primary)]/10 text-[var(--primary)] shadow-md shadow-[var(--primary)]/20"
+            : "border-[var(--line)] bg-[var(--panel2)] text-[var(--muted)] hover:border-[var(--primary)]/20 hover:text-[var(--text)]"
         )}
       >
         <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity -skew-x-12 translate-x-[-200%] group-hover:translate-x-[200%] duration-700" />
@@ -1126,7 +1126,7 @@ function PremiumFilterBar({
     <select
       value={filters[field]}
       onChange={(e) => onChange({ [field]: e.target.value })}
-      className="h-8 rounded-lg border border-[var(--line)] bg-[var(--panel2)] px-2 text-xs font-semibold text-[var(--text)] focus:outline-none focus:ring-1 focus:ring-[var(--gold)] transition-colors cursor-pointer"
+      className="h-8 rounded-lg border border-[var(--line)] bg-[var(--panel2)] px-2 text-xs font-semibold text-[var(--text)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)] transition-colors cursor-pointer"
     >
       {options.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
     </select>
@@ -1143,7 +1143,7 @@ function PremiumFilterBar({
             value={filters.q}
             onChange={(e) => onChange({ q: e.target.value })}
             placeholder="Buscar oportunidades..."
-            className="h-8 w-full rounded-lg border border-[var(--line)] bg-[var(--panel)] pl-7 pr-3 text-xs font-semibold text-[var(--text)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-1 focus:ring-[var(--gold)]"
+            className="h-8 w-full rounded-lg border border-[var(--line)] bg-[var(--panel)] pl-7 pr-3 text-xs font-semibold text-[var(--text)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
           />
         </div>
         {/* UF pills compactos */}
@@ -1157,7 +1157,7 @@ function PremiumFilterBar({
           className={cn(
             "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors",
             active > 0
-              ? "border-[rgba(228,164,20,.4)] bg-[var(--panel-gold)] text-[var(--gold)]"
+              ? "border-[rgba(139,92,246,.4)] bg-[var(--panel-primary)] text-[var(--primary)]"
               : "border-[var(--line)] text-[var(--muted)] hover:text-[var(--text)]"
           )}
         >
@@ -1214,7 +1214,7 @@ function PremiumFilterBar({
                 value={filters.valorMin}
                 onChange={(e) => onChange({ valorMin: e.target.value })}
                 placeholder="0"
-                className="h-8 rounded-lg border border-[var(--line)] bg-[var(--panel)] px-2.5 text-xs font-semibold text-[var(--text)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-1 focus:ring-[var(--gold)]"
+                className="h-8 rounded-lg border border-[var(--line)] bg-[var(--panel)] px-2.5 text-xs font-semibold text-[var(--text)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
               />
             </div>
             {/* Valor máximo */}
@@ -1225,7 +1225,7 @@ function PremiumFilterBar({
                 value={filters.valorMax}
                 onChange={(e) => onChange({ valorMax: e.target.value })}
                 placeholder="Sem limite"
-                className="h-8 rounded-lg border border-[var(--line)] bg-[var(--panel)] px-2.5 text-xs font-semibold text-[var(--text)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-1 focus:ring-[var(--gold)]"
+                className="h-8 rounded-lg border border-[var(--line)] bg-[var(--panel)] px-2.5 text-xs font-semibold text-[var(--text)] placeholder:text-[var(--muted)] focus:outline-none focus:ring-1 focus:ring-[var(--primary)]"
               />
             </div>
           </div>
@@ -1462,7 +1462,7 @@ export function RadarPage() {
         {/* ── Header principal ── */}
         <div className="flex items-center justify-between gap-4 rounded-xl border border-[var(--line)] bg-[var(--panel2)] px-5 py-4">
           <div className="flex items-center gap-3 min-w-0">
-            <TrendingUp className="h-5 w-5 shrink-0 text-[var(--gold)]" />
+            <TrendingUp className="h-5 w-5 shrink-0 text-[var(--primary)]" />
             <div className="min-w-0">
               <h1 className="text-base font-black text-[var(--text)]">Radar de Oportunidades</h1>
               <div className="flex items-center gap-3 text-xs text-[var(--muted)] mt-0.5">
@@ -1476,7 +1476,7 @@ export function RadarPage() {
                   </span>
                 )}
                 {scoreMedia != null && (
-                  <><span>·</span><span>score médio <span className="font-bold text-[var(--gold)]">{scoreMedia}</span></span></>
+                  <><span>·</span><span>score médio <span className="font-bold text-[var(--primary)]">{scoreMedia}</span></span></>
                 )}
                 {planoInfo?.trial?.ativo && (
                   <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 font-bold text-amber-400">
@@ -1526,8 +1526,8 @@ export function RadarPage() {
 
             {/* CRM summary */}
             {Object.keys(crmCounts).length > 0 && (
-              <div className="flex items-center gap-1.5 rounded-lg border border-sky-400/40 bg-sky-400/10 px-2.5 py-1.5 text-xs font-bold text-sky-400">
-                <span className="inline-block h-2 w-2 rounded-full bg-sky-400" />
+              <div className="flex items-center gap-1.5 rounded-lg border border-violet-400/40 bg-violet-400/10 px-2.5 py-1.5 text-xs font-bold text-violet-400">
+                <span className="inline-block h-2 w-2 rounded-full bg-violet-400" />
                 {Object.values(crmCounts).reduce((a, b) => a + b, 0)} CRM
               </div>
             )}
@@ -1539,7 +1539,7 @@ export function RadarPage() {
               className={cn(
                 "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-bold transition-colors",
                 density === "comfortable"
-                  ? "border-[rgba(228,164,20,.4)] bg-[var(--panel-gold)] text-[var(--gold)]"
+                  ? "border-[rgba(139,92,246,.4)] bg-[var(--panel-primary)] text-[var(--primary)]"
                   : "border-[var(--line)] text-[var(--muted)] hover:text-[var(--text)]"
               )}
             >
@@ -1565,13 +1565,13 @@ export function RadarPage() {
                 className={cn(
                   "flex items-center justify-center h-8 w-8 rounded-lg border transition-colors",
                   novasCount > 0
-                    ? "border-[rgba(228,164,20,.4)] bg-[var(--panel-gold)] text-[var(--gold)]"
+                    ? "border-[rgba(139,92,246,.4)] bg-[var(--panel-primary)] text-[var(--primary)]"
                     : "border-[var(--line)] text-[var(--muted)] hover:text-[var(--text)]"
                 )}
               >
                 <Bell className="h-3.5 w-3.5" />
                 {novasCount > 0 && (
-                  <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[var(--gold)] text-black px-1 text-[9px] font-black">
+                  <span className="absolute -top-1 -right-1 flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[var(--primary)] text-black px-1 text-[9px] font-black">
                     {novasCount > 99 ? "99+" : novasCount}
                   </span>
                 )}
@@ -1598,7 +1598,7 @@ export function RadarPage() {
                 className={cn(
                   "inline-flex items-center rounded border px-2 py-0.5 text-[10px] font-bold",
                   p.peso >= 2
-                    ? "border-[rgba(228,164,20,.4)] bg-[var(--panel-gold)] text-[var(--gold)]"
+                    ? "border-[rgba(139,92,246,.4)] bg-[var(--panel-primary)] text-[var(--primary)]"
                     : "border-[var(--line)] bg-[var(--panel2)] text-[var(--muted)]"
                 )}
               >
@@ -1609,7 +1609,7 @@ export function RadarPage() {
             {palavrasChave.length > 10 && (
               <span className="text-[10px] text-[var(--muted)] opacity-50">+{palavrasChave.length - 10} mais</span>
             )}
-            <Link to="/perfil" className="text-[10px] font-bold text-[var(--gold)] hover:opacity-80 transition-opacity ml-1">
+            <Link to="/perfil" className="text-[10px] font-bold text-[var(--primary)] hover:opacity-80 transition-opacity ml-1">
               Editar perfil →
             </Link>
           </div>
@@ -1636,7 +1636,7 @@ export function RadarPage() {
                 className={cn(
                   "rounded border px-2.5 py-1 text-xs font-bold transition-colors whitespace-nowrap",
                   active
-                    ? "border-[rgba(228,164,20,.4)] bg-[var(--panel-gold)] text-[var(--gold)]"
+                    ? "border-[rgba(139,92,246,.4)] bg-[var(--panel-primary)] text-[var(--primary)]"
                     : "border-[var(--line)] bg-[var(--panel2)] text-[var(--muted)] hover:text-[var(--text)]"
                 )}
               >
@@ -1645,7 +1645,7 @@ export function RadarPage() {
             );
           })}
           {(localFilters.valorMin || localFilters.valorMax) && !FAIXAS_VALOR.some((f) => Number(localFilters.valorMin || 0) === f.min && (f.max === Infinity ? !localFilters.valorMax : Number(localFilters.valorMax || Infinity) === f.max)) && (
-            <span className="rounded border border-[rgba(228,164,20,.4)] bg-[var(--panel-gold)] px-2.5 py-1 text-xs font-bold text-[var(--gold)]">
+            <span className="rounded border border-[rgba(139,92,246,.4)] bg-[var(--panel-primary)] px-2.5 py-1 text-xs font-bold text-[var(--primary)]">
               {localFilters.valorMin ? `≥ R$${Number(localFilters.valorMin).toLocaleString("pt-BR")}` : ""}
               {localFilters.valorMin && localFilters.valorMax ? " – " : ""}
               {localFilters.valorMax ? `≤ R$${Number(localFilters.valorMax).toLocaleString("pt-BR")}` : ""}
@@ -1696,10 +1696,10 @@ export function RadarPage() {
                       patchFilter({ [key]: "" } as Partial<FilterState>);
                     }
                   }}
-                  className="group relative flex items-center gap-1.5 overflow-hidden rounded-lg border border-[var(--gold)]/40 bg-gradient-to-br from-[var(--gold)]/20 to-[var(--gold)]/10 px-3 py-1.5 text-xs font-bold text-[var(--gold)] shadow-md hover:shadow-lg hover:scale-105 transition-all duration-200 animate-in fade-in slide-in-from-top-2"
+                  className="group relative flex items-center gap-1.5 overflow-hidden rounded-lg border border-[var(--primary)]/40 bg-gradient-to-br from-[var(--primary)]/20 to-[var(--primary)]/10 px-3 py-1.5 text-xs font-bold text-[var(--primary)] shadow-md hover:shadow-lg hover:scale-105 transition-all duration-200 animate-in fade-in slide-in-from-top-2"
                   style={{ animationDelay: `${idx * 50}ms` }}
                 >
-                  <span className="absolute inset-0 bg-[var(--gold)]/10 scale-0 group-hover:scale-100 transition-transform duration-300 rounded-lg" />
+                  <span className="absolute inset-0 bg-[var(--primary)]/10 scale-0 group-hover:scale-100 transition-transform duration-300 rounded-lg" />
                   <span className="relative z-10">{display}</span>
                   <X className="relative z-10 h-3 w-3 transition-transform group-hover:rotate-90 duration-200" />
                 </button>
@@ -1732,8 +1732,8 @@ export function RadarPage() {
                   } : undefined}
                   className={cn(
                     "flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-widest select-none transition-colors",
-                    h.sort ? "cursor-pointer hover:text-[var(--gold)]" : "",
-                    h.sort && sortKey === h.sort ? "text-[var(--gold)]" : "text-[var(--muted)] opacity-60",
+                    h.sort ? "cursor-pointer hover:text-[var(--primary)]" : "",
+                    h.sort && sortKey === h.sort ? "text-[var(--primary)]" : "text-[var(--muted)] opacity-60",
                     h.cls
                   )}
                 >
@@ -1817,7 +1817,7 @@ export function RadarPage() {
                   <button
                     onClick={loadMore}
                     disabled={loading}
-                    className="flex items-center gap-1.5 rounded-lg border border-[var(--line)] bg-[var(--panel2)] px-4 py-1.5 text-xs font-bold text-[var(--muted)] hover:text-[var(--gold)] hover:border-[rgba(228,164,20,.4)] disabled:opacity-50 transition-colors"
+                    className="flex items-center gap-1.5 rounded-lg border border-[var(--line)] bg-[var(--panel2)] px-4 py-1.5 text-xs font-bold text-[var(--muted)] hover:text-[var(--primary)] hover:border-[rgba(139,92,246,.4)] disabled:opacity-50 transition-colors"
                   >
                     {loading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <ChevronRight className="h-3.5 w-3.5" />}
                     {loading ? "Carregando..." : "Carregar mais"}
@@ -1870,15 +1870,15 @@ export function RadarPage() {
 
       {/* ── Barra de Comparação ── */}
       {compareList.length > 0 && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-2xl border border-sky-400/40 bg-[var(--panel)] px-4 py-2.5 shadow-2xl shadow-black/40 backdrop-blur">
-          <GitCompare className="h-4 w-4 text-sky-400 shrink-0" />
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-2xl border border-violet-400/40 bg-[var(--panel)] px-4 py-2.5 shadow-2xl shadow-black/40 backdrop-blur">
+          <GitCompare className="h-4 w-4 text-violet-400 shrink-0" />
           <span className="text-xs font-bold text-[var(--text)]">
             {compareList.length} selecionada{compareList.length !== 1 ? "s" : ""}
           </span>
           <span className="text-[10px] text-[var(--muted)]">(máx. 3)</span>
           <Link
             to={`/comparar?ids=${compareList.map(encodeURIComponent).join(",")}`}
-            className="rounded-lg bg-sky-500/20 border border-sky-400/40 px-3 py-1 text-xs font-extrabold text-sky-300 hover:opacity-80 transition-opacity"
+            className="rounded-lg bg-violet-500/20 border border-violet-400/40 px-3 py-1 text-xs font-extrabold text-violet-300 hover:opacity-80 transition-opacity"
           >
             Comparar →
           </Link>
