@@ -17,6 +17,23 @@
   --gold: #E4A414;
   --purple: #6A01BB;
   --bronze: #7D6445;
+  
+  /* Premium gradients */
+  --gradient-gold: linear-gradient(135deg, #e4a414 0%, #f5c84c 100%);
+  --gradient-gold-intense: linear-gradient(135deg, #f5c84c 0%, #e4a414 50%, #d4940f 100%);
+  --gradient-premium: linear-gradient(135deg, rgba(228, 164, 20, 0.1) 0%, rgba(14, 165, 233, 0.1) 100%);
+  
+  /* Premium shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07), 0 2px 4px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.05);
+  --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.15), 0 10px 10px rgba(0, 0, 0, 0.04);
+  --shadow-gold: 0 8px 16px rgba(228, 164, 20, 0.2);
+  --shadow-gold-lg: 0 12px 24px rgba(228, 164, 20, 0.25);
+  
+  /* Transitions */
+  --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-bounce: all 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
 }
 
 /* ─── Modo claro ─── */
@@ -47,6 +64,46 @@
     font-family: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     min-height: 100vh;
+  }
+  
+  /* Premium utility classes */
+  .animate-shimmer {
+    animation: shimmer 2s ease-in-out infinite;
+    background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0) 0%,
+      rgba(255, 255, 255, 0.05) 50%,
+      rgba(255, 255, 255, 0) 100%
+    );
+    background-size: 200% 100%;
+  }
+  
+  @keyframes shimmer {
+    0% { background-position: -200% 0; }
+    100% { background-position: 200% 0; }
+  }
+  
+  @keyframes slideInUp {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  @keyframes slideIn {
+    from { width: 0%; opacity: 0; }
+    to { opacity: 1; }
+  }
+  
+  .gradient-text {
+    background: var(--gradient-gold);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
   }
   :root {
     --background: 0 0% 100%;

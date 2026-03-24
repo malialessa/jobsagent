@@ -193,11 +193,31 @@ function formatDate(iso: string | any, withTime = false): string {
   const str = (raw == null || raw === "") ? "" : String(raw);
   if (!str) return "—";
   try {
-    const opts: Intl.DateTimeFormatOptions = withTime
-      ? { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" }
-      : { day: "2-digit", month: "2-digit", year: "numeric" };
-    return new Intl.DateTimeFormat("pt-BR", opts).format(new Date(str));
+    const date = new Date(str);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    
+    if (withTime) {
+      const hours = String(date.getHours()).padStart(2, '0');
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      return `${day}/${month}/${year} às ${hours}:${minutes}`;
+    }
+    
+    return `${day}/${month}/${year}`;
   } catch { return typeof str === "string" ? str.slice(0, 10) : "—"; }
+}
+
+function formatDateShort(iso: string | any): string {
+  const raw = (iso && typeof iso === "object" && "value" in iso) ? iso.value : iso;
+  const str = (raw == null || raw === "") ? "" : String(raw);
+  if (!str) return "—";
+  try {
+    const date = new Date(str);
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    return `${day}/${month}`;
+  } catch { return "—"; }
 }
 
 function formatCurrency(v?: number | null): string {
@@ -277,24 +297,47 @@ function TableSkeleton() {
 
 function ScoreBar({ value }: { value?: number }) {
   if (!value) return <span className="text-xs text-[var(--muted)]">—</span>;
+  
   const hint = value >= 80 ? "Compatibilidade excepcional"
     : value >= 60 ? "Boa compatibilidade"
     : value >= 40 ? "Compatibilidade moderada"
     : "Baixa compatibilidade";
+  
+  const gradientClass = value >= 80 
+    ? "from-amber-400 via-[var(--gold)] to-yellow-500"
+    : value >= 60
+    ? "from-sky-400 via-blue-400 to-cyan-400"
+    : "from-gray-400 via-gray-500 to-gray-600";
+  
   return (
     <div
-      className="flex flex-col gap-1 items-center"
+      className="group flex flex-col gap-1.5 items-center cursor-help"
       title={`Score ${value}/100 — ${hint}. Baseado em: alinhamento por palavras-chave, UF, modalidade e prazo.`}
     >
-      <span className={cn("text-xs font-black tabular-nums leading-none",
-        value >= 70 ? "text-[var(--gold)]" : value >= 40 ? "text-sky-400" : "text-[var(--muted)]")}>
-        {value}
-      </span>
-      <div className="h-1 w-8 overflow-hidden rounded-full bg-[var(--line)]">
+      <div className={cn(
+        "relative px-2 py-0.5 rounded-md font-black text-xs tabular-nums",
+        "bg-gradient-to-br shadow-md transition-all duration-300",
+        "group-hover:scale-110 group-hover:shadow-lg",
+        gradientClass
+      )}>
+        <span className="relative z-10 text-white drop-shadow-sm">{value}</span>
+        <div className={cn(
+          "absolute inset-0 rounded-md blur-sm opacity-40 transition-opacity",
+          "bg-gradient-to-br group-hover:opacity-60",
+          gradientClass
+        )} style={{ zIndex: -1 }} />
+      </div>
+      
+      <div className="h-1 w-10 overflow-hidden rounded-full bg-[var(--line)] shadow-inner">
         <div
-          className={cn("h-full rounded-full transition-all",
-            value >= 70 ? "bg-[var(--gold)]" : value >= 40 ? "bg-sky-400" : "bg-[var(--muted)]")}
-          style={{ width: `${Math.min(value, 100)}%` }}
+          className={cn(
+            "h-full rounded-full bg-gradient-to-r transition-all duration-700 ease-out",
+            gradientClass
+          )}
+          style={{ 
+            width: `${Math.min(value, 100)}%`,
+            animation: 'slideIn 0.7s ease-out'
+          }}
         />
       </div>
     </div>
@@ -334,17 +377,25 @@ function LineRow({ op, rank, onClick, active, favorited, onToggleFav, inCompare,
       onClick={onClick}
       data-opid={opId}
       className={cn(
-        "group relative grid grid-cols-12 items-center gap-4 border-b border-[var(--line)] px-4 transition-colors cursor-pointer select-none",
+        "group relative grid grid-cols-12 items-center gap-4 border-b border-[var(--line)]",
+        "px-4 transition-all duration-300 cursor-pointer select-none",
         comfortable ? "py-4" : "py-2.5",
-        active ? "bg-[var(--panel2)]" : "hover:bg-[var(--panel2)]",
+        active 
+          ? "bg-gradient-to-r from-[var(--gold)]/10 via-[var(--panel2)] to-transparent border-l-2 border-l-[var(--gold)] shadow-lg shadow-[var(--gold)]/10"
+          : "hover:bg-gradient-to-r hover:from-[var(--panel2)] hover:to-transparent hover:border-l-2 hover:border-l-[var(--gold)]/50",
         crm.value === "interesse" ? "border-l-2 border-l-sky-400" :
         crm.value === "proposta"  ? "border-l-2 border-l-amber-400" :
         crm.value === "ganho"     ? "border-l-2 border-l-emerald-400" :
         crm.value === "perdido"   ? "border-l-2 border-l-red-400" : "",
       )}
     >
+      <div className={cn(
+        "absolute inset-0 bg-gradient-to-r from-[var(--gold)]/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none",
+        active && "opacity-100"
+      )} />
+      
       {/* col 1: Rank + CRM dot */}
-      <div className="col-span-1 flex flex-col items-center gap-1.5">
+      <div className="relative z-10 col-span-1 flex flex-col items-center gap-1.5">
         <span className={cn("text-xs font-bold tabular-nums",
           active ? "text-[var(--text)]" : "text-[var(--muted)] opacity-60")}>{rank}</span>
         {onCycleCrm && (
@@ -359,8 +410,8 @@ function LineRow({ op, rank, onClick, active, favorited, onToggleFav, inCompare,
         )}
       </div>
 
-      {/* col 6: Main content */}
-      <div className="col-span-6 min-w-0 space-y-1">
+      {/* col 5: Main content */}
+      <div className="relative z-10 col-span-5 min-w-0 space-y-1">
         <p
           className={cn(
             comfortable ? "text-sm line-clamp-2" : "text-sm line-clamp-1",
@@ -399,7 +450,7 @@ function LineRow({ op, rank, onClick, active, favorited, onToggleFav, inCompare,
       </div>
 
       {/* col 1: UF */}
-      <div className="col-span-1 text-center">
+      <div className="relative z-10 col-span-1 text-center">
         {op.uf ? (
           <span className="text-xs font-bold text-[var(--text)]">{op.uf}</span>
         ) : (
@@ -408,7 +459,7 @@ function LineRow({ op, rank, onClick, active, favorited, onToggleFav, inCompare,
       </div>
 
       {/* col 2: Valor */}
-      <div className="col-span-2 text-right">
+      <div className="relative z-10 col-span-2 text-right">
         {op.valor_total_estimado ? (
           <p className={cn(
             "tabular-nums font-bold leading-none text-xs",
@@ -419,20 +470,27 @@ function LineRow({ op, rank, onClick, active, favorited, onToggleFav, inCompare,
         )}
       </div>
 
-      {/* col 1: Prazo */}
-      <div className="col-span-1 text-center">
+      {/* col 1: Data encerramento */}
+      <div className="relative z-10 col-span-1 text-center">
+        <span className="text-xs font-medium text-[var(--muted)]">
+          {formatDateShort(op.data_encerramento_proposta)}
+        </span>
+      </div>
+
+      {/* col 1: Dias restantes */}
+      <div className="relative z-10 col-span-1 text-center">
         {dias <= 0 ? (
           <span className="text-[10px] font-semibold text-red-400">Enc.</span>
         ) : (
           <span className={cn("tabular-nums font-bold text-xs",
-            isUrgent ? "text-red-400" : isWarning ? "text-amber-400" : "text-[var(--muted)]")}>
-            D-{dias}
+            isUrgent ? "text-red-400 animate-pulse" : isWarning ? "text-amber-400" : "text-[var(--muted)]")}>
+            {dias}d
           </span>
         )}
       </div>
 
       {/* col 1: Score + Actions */}
-      <div className="col-span-1 flex flex-col items-center gap-1.5">
+      <div className="relative z-10 col-span-1 flex flex-col items-center gap-1.5">
         <ScoreBar value={op.score_oportunidade} />
         <div className="flex items-center gap-0.5">
           {/* Heart */}
@@ -1042,13 +1100,24 @@ function PremiumFilterBar({
         key={value}
         onClick={() => isMulti ? toggleMulti(field, value) : onChange({ [field]: filters[field] === value ? "" : value })}
         className={cn(
-          "rounded-lg border px-2.5 py-1 text-xs font-bold transition-colors whitespace-nowrap",
+          "relative overflow-hidden group",
+          "rounded-xl border px-3 py-1.5 text-xs font-bold",
+          "transition-all duration-300 ease-out",
+          "hover:scale-105 hover:-translate-y-0.5",
           selected
-            ? "border-[rgba(228,164,20,.4)] bg-[var(--panel-gold)] text-[var(--gold)]"
-            : "border-[var(--line)] bg-[var(--panel2)] text-[var(--muted)] hover:text-[var(--text)]"
+            ? "border-[var(--gold)]/40 bg-gradient-to-br from-[var(--gold)]/20 to-[var(--gold)]/10 text-[var(--gold)] shadow-md shadow-[var(--gold)]/20"
+            : "border-[var(--line)] bg-[var(--panel2)] text-[var(--muted)] hover:border-[var(--gold)]/20 hover:text-[var(--text)]"
         )}
       >
-        {label}
+        <span className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent opacity-0 group-hover:opacity-100 transition-opacity -skew-x-12 translate-x-[-200%] group-hover:translate-x-[200%] duration-700" />
+        
+        {selected && (
+          <span className="inline-block mr-1 animate-in fade-in zoom-in duration-200">
+            ✓
+          </span>
+        )}
+        
+        <span className="relative z-10">{label}</span>
       </button>
     );
   };
@@ -1627,10 +1696,12 @@ export function RadarPage() {
                       patchFilter({ [key]: "" } as Partial<FilterState>);
                     }
                   }}
-                  className="flex items-center gap-1.5 rounded border border-[rgba(228,164,20,.4)] bg-[var(--panel-gold)] px-2 py-0.5 text-xs font-bold text-[var(--gold)] hover:opacity-80 transition-opacity"
+                  className="group relative flex items-center gap-1.5 overflow-hidden rounded-lg border border-[var(--gold)]/40 bg-gradient-to-br from-[var(--gold)]/20 to-[var(--gold)]/10 px-3 py-1.5 text-xs font-bold text-[var(--gold)] shadow-md hover:shadow-lg hover:scale-105 transition-all duration-200 animate-in fade-in slide-in-from-top-2"
+                  style={{ animationDelay: `${idx * 50}ms` }}
                 >
-                  {display}
-                  <X className="h-3 w-3" />
+                  <span className="absolute inset-0 bg-[var(--gold)]/10 scale-0 group-hover:scale-100 transition-transform duration-300 rounded-lg" />
+                  <span className="relative z-10">{display}</span>
+                  <X className="relative z-10 h-3 w-3 transition-transform group-hover:rotate-90 duration-200" />
                 </button>
               ))}
             </div>
@@ -1646,10 +1717,11 @@ export function RadarPage() {
             <div className="grid grid-cols-12 gap-4 items-center">
               {[
                 { label: "#",      cls: "col-span-1 text-center",  sort: null },
-                { label: "Oportunidade", cls: "col-span-6",  sort: null },
+                { label: "Oportunidade", cls: "col-span-5",  sort: null },
                 { label: "UF",     cls: "col-span-1 text-center",  sort: null },
                 { label: "Valor",  cls: "col-span-2 text-right",   sort: "valor" as const },
-                { label: "Prazo",  cls: "col-span-1 text-center",  sort: "prazo" as const },
+                { label: "Encerra",  cls: "col-span-1 text-center",  sort: null },
+                { label: "Dias",  cls: "col-span-1 text-center",  sort: "prazo" as const },
                 { label: "Score",  cls: "col-span-1 text-center",  sort: "score" as const },
               ].map((h) => (
                 <div
