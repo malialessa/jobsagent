@@ -64,7 +64,6 @@ import { randomUUID, createHash } from "crypto";
 import * as fs from "fs";
 import * as path from "path";
 import { Storage } from "@google-cloud/storage";
-import Stripe from "stripe";
 import sgMail from "@sendgrid/mail";
 
 // --- INICIALIZAÇÃO E CONFIGURAÇÃO GLOBAL ---
@@ -97,26 +96,22 @@ const TABLE_KNOWLEDGE_VECTORS = "knowledge_vectors";
 const UFS_INGEST_DIARIO = ["SP","MG","RJ","BA","RS","PR","PE","CE","GO","SC","PA","MA","PB","AM","PI","ES","RO","TO","AL","SE","MT","MS","RN","DF","AC","AP","RR"];
 const SCHEDULER_SECRET = process.env.SCHEDULER_SECRET || "";
 
-// --- Stripe ---
-const STRIPE_SECRET_KEY     = process.env.STRIPE_SECRET_KEY     || "";
-const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET || "";
-const STRIPE_PRICE_PRO      = process.env.STRIPE_PRICE_PRO      || "";
-const STRIPE_PRICE_ENTERPRISE = process.env.STRIPE_PRICE_ENTERPRISE || "";
-// Lazy-init: só cria instância se a key estiver configurada
-const getStripe = (() => {
-        let instance: Stripe | null = null;
-        return () => {
-                if (!instance && STRIPE_SECRET_KEY) instance = new Stripe(STRIPE_SECRET_KEY, { apiVersion: "2026-02-25.clover" });
-                return instance;
-        };
-})();
+// --- Mercado Pago (conectar quando tiver credenciais — ver LEDGER P-MP-01) ---
+// Para ativar: adicionar MP_ACCESS_TOKEN, MP_WEBHOOK_SECRET, MP_PLAN_ID_PRO e
+// MP_PLAN_ID_ENTERPRISE em functions/.env.uniquex-487718 e fazer redeploy.
+const MP_ACCESS_TOKEN        = process.env.MP_ACCESS_TOKEN        || "";
+const MP_WEBHOOK_SECRET      = process.env.MP_WEBHOOK_SECRET      || "";
+const MP_PLAN_ID_PRO         = process.env.MP_PLAN_ID_PRO         || "";
+const MP_PLAN_ID_ENTERPRISE  = process.env.MP_PLAN_ID_ENTERPRISE  || "";
+const MP_BASE_URL            = "https://api.mercadopago.com";
+const isMpConfigured         = () => !!MP_ACCESS_TOKEN;
 
-// --- SendGrid ---
-const SENDGRID_API_KEY = process.env.SENDGRID_API_KEY || "";
+// --- SendGrid (conectar quando tiver API key — ver LEDGER P-SG-01) ---
+// Para ativar: adicionar SENDGRID_API_KEY e SENDGRID_FROM_EMAIL em .env e redeploy.
+const SENDGRID_API_KEY    = process.env.SENDGRID_API_KEY    || "";
+const SENDGRID_FROM_EMAIL = process.env.SENDGRID_FROM_EMAIL || "noreply@liciai.com.br";
 if (SENDGRID_API_KEY) sgMail.setApiKey(SENDGRID_API_KEY);
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-// @ts-ignore
-const ALERT_FROM_EMAIL = process.env.ALERT_FROM_EMAIL || "alertas@liciai.com.br";
+const isSgConfigured = () => !!SENDGRID_API_KEY;
 
 type PlanoNome = "free" | "pro" | "enterprise" | "gov";
 
@@ -1489,102 +1484,375 @@ app.post('/scheduler/merge', schedulerAuthMiddleware, async (req, res) => {
         }
 });
 
-// --- ROTEADOR PRINCIPAL E EXPORTAÇÃO DA API ---
+// =============================================================================
+// BILLING — MERCADO PAGO
+// Status: STUB — aguardando credenciais (ver LEDGER P-MP-01)
+// Para ativar: definir MP_ACCESS_TOKEN, MP_WEBHOOK_SECRET, MP_PLAN_ID_PRO,
+//              MP_PLAN_ID_ENTERPRISE em .env.uniquex-487718 e redeploy.
+// Documentação MP Subscriptions: https://www.mercadopago.com.br/developers/pt/docs/subscriptions/landing
+// =============================================================================
 
-// POST /createCheckout — cria sessão de checkout Stripe para upgrade de plano
-app.post('/createCheckout', userAuthMiddleware, async (req: any, res) => {
-        try {
-                const stripe = getStripe();
-                if (!stripe) return res.status(503).json({ message: "Stripe não configurado neste ambiente." });
-
-                const { plano } = req.body as { plano?: string };
-                const priceId = plano === "enterprise" ? STRIPE_PRICE_ENTERPRISE : STRIPE_PRICE_PRO;
-                if (!priceId) return res.status(400).json({ message: "Plano inválido ou Price ID não configurado." });
-
-                const uid: string = req.user?.uid;
-                const email: string | undefined = req.user?.email;
-                const tenantId = uid; // 1:1 por ora
-
-                const origin = req.headers.origin || "https://liciai-uniquex-487718.web.app";
-                const session = await stripe.checkout.sessions.create({
-                        payment_method_types: ["card"],
-                        line_items: [{ price: priceId, quantity: 1 }],
-                        mode: "subscription",
-                        customer_email: email,
-                        metadata: { uid, tenantId, plano: plano ?? "pro" },
-                        success_url: `${origin}/planos?checkout=success`,
-                        cancel_url:  `${origin}/planos?checkout=cancel`,
+// POST /billing/checkout
+// Cria uma preferência de assinatura no Mercado Pago e retorna a URL de checkout.
+// Body: { plano: "pro" | "enterprise" }
+// Response: { checkout_url: string, preference_id: string }
+app.post('/billing/checkout', userAuthMiddleware, async (req: any, res) => {
+        if (!isMpConfigured()) {
+                return res.status(503).json({
+                        message: "Pagamentos ainda não configurados. Entre em contato pelo suporte.",
+                        pendente: "MP_ACCESS_TOKEN",
                 });
-                return res.json({ url: session.url });
+        }
+        try {
+                const uid: string    = req.user?.uid;
+                const email: string  = req.user?.email || "";
+                const tenantId       = uid;
+                const { plano }      = req.body as { plano?: string };
+                if (!plano || !["pro", "enterprise"].includes(plano)) {
+                        return res.status(400).json({ message: "plano deve ser 'pro' ou 'enterprise'." });
+                }
+                const planId = plano === "enterprise" ? MP_PLAN_ID_ENTERPRISE : MP_PLAN_ID_PRO;
+                if (!planId) return res.status(400).json({ message: `MP_PLAN_ID_${plano.toUpperCase()} não configurado.` });
+
+                const origin = (req.headers.origin as string) || "https://liciai-uniquex-487718.web.app";
+
+                // Cria preferência de assinatura via MP Subscriptions API
+                const mpRes = await axios.post(
+                        `${MP_BASE_URL}/preapproval_plan`,
+                        {
+                                reason: `LiciAI ${plano.charAt(0).toUpperCase() + plano.slice(1)}`,
+                                auto_recurring: {
+                                        frequency: 1,
+                                        frequency_type: "months",
+                                        transaction_amount: plano === "enterprise" ? 497 : 197,
+                                        currency_id: "BRL",
+                                },
+                                payer_email: email,
+                                external_reference: JSON.stringify({ uid, tenantId, plano }),
+                                back_url: `${origin}/planos?checkout=success`,
+                        },
+                        { headers: { Authorization: `Bearer ${MP_ACCESS_TOKEN}`, "Content-Type": "application/json" } }
+                );
+
+                const preferenceId: string = mpRes.data.id;
+                const checkoutUrl: string  = mpRes.data.init_point;
+                logger.info("[billing/checkout] Preferência MP criada", { uid, plano, preferenceId });
+                return res.json({ checkout_url: checkoutUrl, preference_id: preferenceId });
         } catch (error: any) {
-                await logErrorToBigQuery({ funcao_ou_componente: "createCheckout", mensagem: error.message, stack_trace: error.stack });
-                return res.status(500).json({ message: "Erro ao criar sessão de checkout.", error: error.message });
+                await logErrorToBigQuery({ funcao_ou_componente: "billing/checkout", mensagem: error.message, stack_trace: error.stack });
+                return res.status(500).json({ message: "Erro ao criar checkout.", error: error.message });
         }
 });
 
-// POST /stripeWebhook — recebe eventos Stripe (raw body obrigatório)
-// Nota: esta rota usa express.raw() aplicado individualmente via middleware inline
-app.post('/stripeWebhook', express.raw({ type: "application/json" }), async (req, res) => {
+// GET /billing/status
+// Retorna plano atual, status de pagamento e dias de trial restantes para o usuário.
+app.get('/billing/status', userAuthMiddleware, userPlanMiddleware, async (req: any, res) => {
         try {
-                const stripe = getStripe();
-                if (!stripe || !STRIPE_WEBHOOK_SECRET) {
-                        return res.status(503).json({ message: "Stripe não configurado." });
-                }
-                const sig = req.headers["stripe-signature"]!;
-                let event: Stripe.Event;
-                try {
-                        event = stripe.webhooks.constructEvent(req.body, sig, STRIPE_WEBHOOK_SECRET);
-                } catch (err: any) {
-                        logger.warn("Assinatura de webhook Stripe inválida", { err: err.message });
-                        return res.status(400).json({ message: `Webhook error: ${err.message}` });
-                }
+                const uid = req.user?.uid;
+                const [rows] = await bq.query({
+                        query: `SELECT plano, status_pagamento, trial_inicio, trial_fim,
+                                       mp_customer_id, mp_subscription_id
+                                FROM \`${GCP_PROJECT_ID}.${DATASET_DIM}.cliente\`
+                                WHERE cliente_id = @uid LIMIT 1`,
+                        params: { uid },
+                        location: "US",
+                });
+                if (!rows.length) return res.status(404).json({ message: "Usuário não encontrado." });
+                return res.json({ billing: rows.map(serializeBqRow)[0] });
+        } catch (error: any) {
+                await logErrorToBigQuery({ funcao_ou_componente: "billing/status", mensagem: error.message, stack_trace: error.stack });
+                return res.status(500).json({ message: "Erro ao buscar status de billing.", error: error.message });
+        }
+});
 
-                if (event.type === "checkout.session.completed") {
-                        const session = event.data.object as Stripe.Checkout.Session;
-                        const { uid, tenantId, plano } = session.metadata ?? {};
-                        if (uid && tenantId && plano) {
-                                // Atualizar dim.cliente com novo plano e status ativo
-                                const updateQuery = `
-                                        UPDATE \`${GCP_PROJECT_ID}.${DATASET_DIM}.cliente\`
-                                        SET plano = @plano,
-                                            status_pagamento = 'ativo',
-                                            stripe_customer_id = @customerId,
-                                            stripe_subscription_id = @subscriptionId
-                                        WHERE tenant_id = @tenantId
-                                `;
-                                const params = {
-                                        plano,
-                                        customerId:      session.customer      ?? "",
-                                        subscriptionId:  session.subscription  ?? "",
-                                        tenantId,
-                                };
-                                const [job] = await bq.createQueryJob({ query: updateQuery, params, location: "US" });
-                                await job.getQueryResults();
-                                logger.info(`Plano atualizado para ${plano}`, { uid, tenantId });
+// POST /billing/webhook
+// Recebe notificações do Mercado Pago (IPN/webhook).
+// MP envia: { type: "payment" | "subscription_preapproval", data: { id: string } }
+// Valida assinatura HMAC-SHA256 via header x-signature quando MP_WEBHOOK_SECRET estiver configurado.
+app.post('/billing/webhook', express.raw({ type: "application/json" }), async (req, res) => {
+        if (!isMpConfigured()) return res.status(503).json({ message: "Mercado Pago não configurado." });
+        try {
+                // Validação de assinatura (opcional mas recomendado)
+                if (MP_WEBHOOK_SECRET) {
+                        const xSignature = req.headers["x-signature"] as string ?? "";
+                        const xRequestId = req.headers["x-request-id"] as string ?? "";
+                        const urlParams  = new URLSearchParams(req.headers["x-query-params"] as string ?? "");
+                        const dataId     = urlParams.get("data.id") ?? "";
+                        const manifest   = `id:${dataId};request-id:${xRequestId};ts:${xSignature.split(";").find(p => p.startsWith("ts="))?.slice(3) ?? ""}` ;
+                        const expected   = require("crypto").createHmac("sha256", MP_WEBHOOK_SECRET).update(manifest).digest("hex");
+                        const received   = xSignature.split(";").find(p => p.startsWith("v1="))?.slice(3) ?? "";
+                        if (expected !== received) {
+                                logger.warn("[billing/webhook] Assinatura MP inválida");
+                                return res.status(400).json({ message: "Assinatura inválida." });
                         }
                 }
 
-                if (event.type === "customer.subscription.deleted") {
-                        const sub = event.data.object as Stripe.Subscription;
-                        const tenantId = sub.metadata?.tenantId;
-                        if (tenantId) {
-                                const downgradeQuery = `
-                                        UPDATE \`${GCP_PROJECT_ID}.${DATASET_DIM}.cliente\`
-                                        SET plano = 'free', status_pagamento = 'cancelado'
-                                        WHERE tenant_id = @tenantId
-                                `;
-                                const [job] = await bq.createQueryJob({ query: downgradeQuery, params: { tenantId }, location: "US" });
-                                await job.getQueryResults();
-                                logger.info("Plano cancelado → downgrade para free", { tenantId });
+                const body: any = JSON.parse(Buffer.isBuffer(req.body) ? req.body.toString() : req.body);
+                const { type, data } = body as { type: string; data: { id: string } };
+                logger.info("[billing/webhook] Evento recebido", { type, id: data?.id });
+
+                // Evento: assinatura aprovada / paga
+                if (type === "subscription_preapproval" && data?.id) {
+                        const subRes = await axios.get(`${MP_BASE_URL}/preapproval/${data.id}`, {
+                                headers: { Authorization: `Bearer ${MP_ACCESS_TOKEN}` },
+                        });
+                        const sub = subRes.data;
+                        if (sub.status === "authorized") {
+                                let extRef: any = {};
+                                try { extRef = JSON.parse(sub.external_reference || "{}"); } catch {}
+                                const { uid, tenantId, plano } = extRef;
+                                if (tenantId && plano) {
+                                        const [job] = await bq.createQueryJob({
+                                                query: `UPDATE \`${GCP_PROJECT_ID}.${DATASET_DIM}.cliente\`
+                                                        SET plano = @plano, status_pagamento = 'ativo',
+                                                            mp_customer_id = @customerId, mp_subscription_id = @subId
+                                                        WHERE tenant_id = @tenantId`,
+                                                params: { plano, customerId: String(sub.payer_id ?? ""), subId: data.id, tenantId },
+                                                location: "US",
+                                        });
+                                        await job.getQueryResults();
+                                        logger.info(`[billing/webhook] Plano ${plano} ativado para ${tenantId}`);
+                                        // Enviar email de boas-vindas ao plano (se SendGrid configurado)
+                                        await _sendEmailSafe({
+                                                to: sub.payer_email ?? "",
+                                                subject: `Bem-vindo ao LiciAI ${plano.charAt(0).toUpperCase() + plano.slice(1)}!`,
+                                                text: `Seu plano ${plano} foi ativado com sucesso. Acesse: https://liciai-uniquex-487718.web.app`,
+                                        });
+                                        void uid;
+                                }
+                        }
+                }
+
+                // Evento: assinatura cancelada
+                if (type === "subscription_preapproval") {
+                        const subRes = await axios.get(`${MP_BASE_URL}/preapproval/${data.id}`, {
+                                headers: { Authorization: `Bearer ${MP_ACCESS_TOKEN}` },
+                        });
+                        const sub = subRes.data;
+                        if (["cancelled", "paused"].includes(sub.status)) {
+                                let extRef: any = {};
+                                try { extRef = JSON.parse(sub.external_reference || "{}"); } catch {}
+                                const { tenantId } = extRef;
+                                if (tenantId) {
+                                        const [job] = await bq.createQueryJob({
+                                                query: `UPDATE \`${GCP_PROJECT_ID}.${DATASET_DIM}.cliente\`
+                                                        SET plano = 'free', status_pagamento = 'cancelado'
+                                                        WHERE tenant_id = @tenantId`,
+                                                params: { tenantId },
+                                                location: "US",
+                                        });
+                                        await job.getQueryResults();
+                                        logger.info(`[billing/webhook] Plano cancelado → downgrade free para ${tenantId}`);
+                                }
                         }
                 }
 
                 return res.json({ received: true });
         } catch (error: any) {
-                await logErrorToBigQuery({ funcao_ou_componente: "stripeWebhook", mensagem: error.message, stack_trace: error.stack });
+                await logErrorToBigQuery({ funcao_ou_componente: "billing/webhook", mensagem: error.message, stack_trace: error.stack });
                 return res.status(500).json({ message: "Erro no webhook.", error: error.message });
         }
 });
+
+// =============================================================================
+// EMAIL — SENDGRID
+// Status: STUB — aguardando credenciais (ver LEDGER P-SG-01)
+// Para ativar: definir SENDGRID_API_KEY e SENDGRID_FROM_EMAIL em .env e redeploy.
+// Documentação SendGrid: https://docs.sendgrid.com/api-reference/mail-send
+// =============================================================================
+
+// Helper interno para enviar email sem lançar exceção (fire-and-forget seguro)
+async function _sendEmailSafe(opts: { to: string; subject: string; text: string; html?: string }): Promise<void> {
+        if (!isSgConfigured() || !opts.to) return;
+        try {
+                await sgMail.send({ from: SENDGRID_FROM_EMAIL, to: opts.to, subject: opts.subject, text: opts.text, html: opts.html ?? opts.text });
+                logger.info("[email] Enviado", { to: opts.to, subject: opts.subject });
+        } catch (err: any) {
+                logger.error("[email] Falha ao enviar", { to: opts.to, error: err.message });
+        }
+}
+
+// POST /email/sendBemVindo
+// Envia email de boas-vindas para um usuário recém-criado.
+// Body: { uid: string } — admin apenas
+app.post('/email/sendBemVindo', adminAuthMiddleware, async (req, res) => {
+        if (!isSgConfigured()) return res.status(503).json({ message: "SendGrid não configurado.", pendente: "SENDGRID_API_KEY" });
+        try {
+                const { uid } = req.body as { uid?: string };
+                if (!uid) return res.status(400).json({ message: "uid é obrigatório." });
+                const [rows] = await bq.query({
+                        query: `SELECT email, nome_exibicao FROM \`${GCP_PROJECT_ID}.${DATASET_DIM}.cliente\` WHERE cliente_id = @uid LIMIT 1`,
+                        params: { uid }, location: "US",
+                });
+                if (!rows.length) return res.status(404).json({ message: "Usuário não encontrado." });
+                const { email, nome_exibicao } = rows[0];
+                await _sendEmailSafe({
+                        to: email,
+                        subject: "Bem-vindo ao LiciAI — seu radar de licitações",
+                        text: `Olá ${nome_exibicao || ""},\n\nSeu acesso ao LiciAI está ativo. Acesse agora: https://liciai-uniquex-487718.web.app\n\nEquipe LiciAI`,
+                });
+                return res.json({ sent: true, to: email });
+        } catch (error: any) {
+                await logErrorToBigQuery({ funcao_ou_componente: "email/sendBemVindo", mensagem: error.message, stack_trace: error.stack });
+                return res.status(500).json({ message: "Erro ao enviar email.", error: error.message });
+        }
+});
+
+// POST /email/sendAlertaOportunidades
+// Envia email de alerta com as N melhores oportunidades do dia para um usuário.
+// Body: { uid: string, limit?: number } — admin apenas
+app.post('/email/sendAlertaOportunidades', adminAuthMiddleware, async (req, res) => {
+        if (!isSgConfigured()) return res.status(503).json({ message: "SendGrid não configurado.", pendente: "SENDGRID_API_KEY" });
+        try {
+                const { uid, limit = 5 } = req.body as { uid?: string; limit?: number };
+                if (!uid) return res.status(400).json({ message: "uid é obrigatório." });
+                // Buscar oportunidades top do dia
+                const [opRows] = await bq.query({
+                        query: `SELECT objeto_compra, modalidade_nome, valor_total_estimado, data_encerramento_proposta
+                                FROM \`${GCP_PROJECT_ID}.${DATASET_CORE}.${VIEW_OPORTUNIDADES}\`
+                                ORDER BY score_oportunidade DESC LIMIT @limit`,
+                        params: { limit: Math.min(Number(limit), 10) }, location: "US",
+                });
+                // Buscar email do usuário
+                const [userRows] = await bq.query({
+                        query: `SELECT email, nome_exibicao FROM \`${GCP_PROJECT_ID}.${DATASET_DIM}.cliente\` WHERE cliente_id = @uid LIMIT 1`,
+                        params: { uid }, location: "US",
+                });
+                if (!userRows.length) return res.status(404).json({ message: "Usuário não encontrado." });
+                const { email, nome_exibicao } = userRows[0];
+                const lista = opRows.map((op: any, i: number) => `${i+1}. ${op.objeto_compra?.slice(0,80) ?? "—"} — R$ ${op.valor_total_estimado ?? "?"}`).join("\n");
+                await _sendEmailSafe({
+                        to: email,
+                        subject: `LiciAI — ${opRows.length} oportunidades de hoje para você`,
+                        text: `Olá ${nome_exibicao || ""},\n\nSuas top oportunidades de hoje:\n\n${lista}\n\nAcesse: https://liciai-uniquex-487718.web.app\n\nEquipe LiciAI`,
+                });
+                return res.json({ sent: true, to: email, count: opRows.length });
+        } catch (error: any) {
+                await logErrorToBigQuery({ funcao_ou_componente: "email/sendAlertaOportunidades", mensagem: error.message, stack_trace: error.stack });
+                return res.status(500).json({ message: "Erro ao enviar alerta.", error: error.message });
+        }
+});
+
+// =============================================================================
+// BILLING — AUTOMAÇÃO DE DOWNGRADE (EXPIRAÇÃO DE TRIALS)
+// =============================================================================
+
+// POST /admin/billing/expire-trials
+// Processa expiração automática de trials e faz downgrade para plano free.
+// Deve ser chamado diariamente pelo Cloud Scheduler (cron: 0 1 * * *)
+// Admin/System authentication required
+app.post('/admin/billing/expire-trials', adminAuthMiddleware, async (req, res) => {
+        try {
+                const tableName = await resolveClientTableName();
+                
+                // Buscar trials expirados
+                const query = `
+                        SELECT cliente_id, email, tenant_id, nome_exibicao, trial_fim
+                        FROM \`${GCP_PROJECT_ID}.${DATASET_DIM}.${tableName}\`
+                        WHERE status_pagamento = 'trial'
+                          AND trial_fim IS NOT NULL
+                          AND trial_fim <= CURRENT_TIMESTAMP()
+                `;
+                
+                const [rows] = await bq.query({ query, location: BIGQUERY_LOCATION });
+                
+                if (rows.length === 0) {
+                        return res.status(200).json({ 
+                                expired_count: 0,
+                                message: "Nenhum trial expirado encontrado" 
+                        });
+                }
+                
+                const freeLimits = LIMITES_PADRAO_POR_PLANO['free'];
+                let successCount = 0;
+                let errorCount = 0;
+                
+                for (const row of rows) {
+                        try {
+                                // Downgrade para free
+                                const updateQuery = `
+                                        UPDATE \`${GCP_PROJECT_ID}.${DATASET_DIM}.${tableName}\`
+                                        SET 
+                                                plano = 'free',
+                                                status_pagamento = 'ativo',
+                                                limite_uf = @limite_uf,
+                                                limite_oportunidades = @limite_oportunidades,
+                                                limite_docs = @limite_docs,
+                                                limite_produtos = @limite_produtos,
+                                                data_ultima_modificacao = CURRENT_TIMESTAMP()
+                                        WHERE cliente_id = @cliente_id
+                                `;
+                                
+                                await bq.query({ 
+                                        query: updateQuery, 
+                                        location: BIGQUERY_LOCATION,
+                                        params: { 
+                                                cliente_id: row.cliente_id,
+                                                limite_uf: freeLimits.limite_uf,
+                                                limite_oportunidades: freeLimits.limite_oportunidades,
+                                                limite_docs: freeLimits.limite_docs,
+                                                limite_produtos: freeLimits.limite_produtos,
+                                        }
+                                });
+                                
+                                // Registrar evento
+                                await bq.dataset(DATASET_LOG).table('billing_events').insert([{
+                                        event_id: randomUUID(),
+                                        tenant_id: row.tenant_id || row.cliente_id,
+                                        evento_tipo: 'trial_expired',
+                                        plano_anterior: 'trial',
+                                        plano_novo: 'free',
+                                        payload: JSON.stringify({
+                                                cliente_id: row.cliente_id,
+                                                email: row.email,
+                                                trial_fim: row.trial_fim,
+                                        }),
+                                        ocorrido_em: new Date().toISOString(),
+                                }]);
+                                
+                                // Enviar email de notificação (se configurado)
+                                if (isSgConfigured() && row.email) {
+                                        await _sendEmailSafe({
+                                                to: row.email,
+                                                subject: "Seu período de trial expirou - LiciAI",
+                                                text: `Olá ${row.nome_exibicao || ""},\n\nSeu período de trial de 7 dias expirou.\n\nVocê foi movido para o plano Free com acesso a:\n- 1 UF\n- 20 oportunidades/mês\n- 3 documentos\n\nPara continuar com recursos avançados, faça upgrade:\nhttps://liciai-uniquex-487718.web.app/planos\n\nEquipe LiciAI`,
+                                        });
+                                }
+                                
+                                logger.info('Trial expired and downgraded', { 
+                                        cliente_id: row.cliente_id, 
+                                        email: row.email,
+                                        trial_fim: row.trial_fim 
+                                });
+                                
+                                successCount++;
+                        } catch (err: any) {
+                                logger.error('Error expiring trial', { 
+                                        cliente_id: row.cliente_id, 
+                                        error: err.message 
+                                });
+                                errorCount++;
+                        }
+                }
+                
+                return res.status(200).json({ 
+                        expired_count: rows.length,
+                        success_count: successCount,
+                        error_count: errorCount,
+                        message: `${successCount} trials expirados processados com sucesso, ${errorCount} erros`
+                });
+                
+        } catch (error: any) {
+                await logErrorToBigQuery({ 
+                        funcao_ou_componente: "admin/billing/expire-trials", 
+                        mensagem: error.message, 
+                        stack_trace: error.stack 
+                });
+                return res.status(500).json({ error: error.message });
+        }
+});
+
+// --- ROTEADOR PRINCIPAL E EXPORTAÇÃO DA API ---
 
 // GET /getItensPNCP — proxy para a API PNCP de itens de uma contratação
 // Query: id_pncp (formato CNPJ-XXXXXXXX0001XX-1-SEQANO/YYYY ou numeroControlePNCP direto)
