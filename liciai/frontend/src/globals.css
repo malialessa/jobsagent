@@ -2,38 +2,39 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ─── Tokens Modern Luxury — Modo escuro (padrão) ─── */
+/* ─── Tokens Corporate Steel — Modo escuro (padrão) ─── */
 :root {
-  --bg: #0A0A0B;
-  --bg2: #121214;
-  --panel: #1A1A1D;
-  --panel2: #0D0D0F;
+  --bg: #0E1116;
+  --bg2: #161B22;
+  --panel: #21262D;
+  --panel2: #141619;
   --panel-soft: rgba(255, 255, 255, 0.04);
-  --panel-primary: rgba(139, 92, 246, 0.08);
-  --panel-secondary: rgba(16, 185, 129, 0.08);
+  --panel-primary: rgba(88, 166, 255, 0.08);
+  --panel-secondary: rgba(63, 185, 80, 0.08);
   --text: #EDEDED;
-  --muted: #9CA3AF;
-  --line: rgba(255, 255, 255, 0.06);
-  --primary: #8B5CF6;
-  --secondary: #10B981;
-  --accent: #F59E0B;
+  --muted: #8B949E;
+  --line: rgba(255, 255, 255, 0.08);
+  --primary: #58A6FF;
+  --secondary: #1F6FEB;
+  --accent: #3FB950;
+  --warning: #D29922;
   
   /* Premium gradients */
-  --gradient-primary: linear-gradient(135deg, #8B5CF6 0%, #A78BFA 100%);
-  --gradient-primary-intense: linear-gradient(135deg, #A78BFA 0%, #8B5CF6 50%, #7C3AED 100%);
-  --gradient-secondary: linear-gradient(135deg, #10B981 0%, #34D399 100%);
-  --gradient-accent: linear-gradient(135deg, #F59E0B 0%, #FBBF24 100%);
-  --gradient-hero: linear-gradient(135deg, #8B5CF6 0%, #10B981 100%);
+  --gradient-primary: linear-gradient(135deg, #58A6FF 0%, #1F6FEB 100%);
+  --gradient-primary-intense: linear-gradient(135deg, #79C0FF 0%, #58A6FF 50%, #1F6FEB 100%);
+  --gradient-secondary: linear-gradient(135deg, #3FB950 0%, #2EA043 100%);
+  --gradient-accent: linear-gradient(135deg, #D29922 0%, #E8B931 100%);
+  --gradient-hero: linear-gradient(135deg, #58A6FF 0%, #3FB950 100%);
   
   /* Premium shadows */
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
   --shadow-md: 0 4px 6px rgba(0, 0, 0, 0.07), 0 2px 4px rgba(0, 0, 0, 0.06);
   --shadow-lg: 0 10px 15px rgba(0, 0, 0, 0.1), 0 4px 6px rgba(0, 0, 0, 0.05);
   --shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.15), 0 10px 10px rgba(0, 0, 0, 0.04);
-  --shadow-primary: 0 8px 24px rgba(139, 92, 246, 0.25);
-  --shadow-primary-lg: 0 12px 32px rgba(139, 92, 246, 0.30);
-  --shadow-secondary: 0 8px 20px rgba(16, 185, 129, 0.20);
-  --shadow-secondary-lg: 0 12px 28px rgba(16, 185, 129, 0.25);
+  --shadow-primary: 0 8px 24px rgba(88, 166, 255, 0.20);
+  --shadow-primary-lg: 0 12px 32px rgba(88, 166, 255, 0.25);
+  --shadow-secondary: 0 8px 20px rgba(63, 185, 80, 0.18);
+  --shadow-secondary-lg: 0 12px 28px rgba(63, 185, 80, 0.22);
   
   /* Transitions */
   --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);

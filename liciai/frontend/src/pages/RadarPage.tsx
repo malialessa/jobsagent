@@ -73,9 +73,9 @@ const FAIXAS_VALOR = [
 // ─── CRM Status por oportunidade (armazenado em localStorage) ────────────────
 const CRM_STATUSES = [
   { value: "",          label: "Sem status",        dot: "",              badge: "" },
-  { value: "interesse", label: "Interesse",          dot: "bg-violet-400",     badge: "border-violet-400/40 bg-violet-400/10 text-violet-400" },
-  { value: "proposta",  label: "Proposta enviada",   dot: "bg-violet-400",   badge: "border-violet-400/40 bg-violet-400/10 text-violet-400" },
-  { value: "ganho",     label: "Ganho ✓",            dot: "bg-emerald-400", badge: "border-emerald-400/40 bg-emerald-400/10 text-emerald-400" },
+  { value: "interesse", label: "Interesse",          dot: "bg-blue-400",     badge: "border-blue-400/40 bg-blue-400/10 text-blue-400" },
+  { value: "proposta",  label: "Proposta enviada",   dot: "bg-blue-400",   badge: "border-blue-400/40 bg-blue-400/10 text-blue-400" },
+  { value: "ganho",     label: "Ganho ✓",            dot: "bg-green-400", badge: "border-green-400/40 bg-green-400/10 text-green-400" },
   { value: "perdido",   label: "Perdido",            dot: "bg-red-400",     badge: "border-red-400/40 bg-red-400/10 text-red-400" },
 ] as const;
 type CrmStatus = typeof CRM_STATUSES[number]["value"];
@@ -258,10 +258,10 @@ function abrevModalidade(nome?: string | null): string {
 function situacaoCls(situacao?: string | null): string {
   if (!situacao) return "text-[var(--muted)] bg-[var(--panel2)] border-[var(--line)]";
   const s = situacao.toLowerCase();
-  if (/aberta|ativa|publicad/.test(s)) return "text-emerald-400 bg-emerald-400/10 border-emerald-400/30";
+  if (/aberta|ativa|publicad/.test(s)) return "text-green-400 bg-green-400/10 border-green-400/30";
   if (/encerrada|anulada|revogada|cancelada/.test(s)) return "text-red-400 bg-red-400/10 border-red-400/30";
   if (/suspensa|suspend/.test(s)) return "text-amber-400 bg-amber-400/10 border-amber-400/30";
-  return "text-violet-400 bg-violet-400/10 border-violet-400/30";
+  return "text-blue-400 bg-blue-400/10 border-blue-400/30";
 }
 
 // ─── Skeleton ─────────────────────────────────────────────────────────────────
@@ -304,9 +304,9 @@ function ScoreBar({ value }: { value?: number }) {
     : "Baixa compatibilidade";
   
   const gradientClass = value >= 80 
-    ? "from-emerald-400 via-emerald-500 to-emerald-600"
+    ? "from-green-400 via-green-500 to-green-600"
     : value >= 60
-    ? "from-violet-400 via-purple-500 to-purple-600"
+    ? "from-blue-400 via-blue-600 to-blue-700"
     : "from-gray-400 via-gray-500 to-gray-600";
   
   return (
@@ -349,10 +349,10 @@ function ScoreBar({ value }: { value?: number }) {
 function SituacaoDot({ s }: { s?: string | null }) {
   if (!s) return <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--line)]" />;
   const sl = s.toLowerCase();
-  if (/aberta|ativa|publicad/.test(sl)) return <span className="inline-block h-1.5 w-1.5 rounded-full bg-emerald-400" title={s} />;
+  if (/aberta|ativa|publicad/.test(sl)) return <span className="inline-block h-1.5 w-1.5 rounded-full bg-green-400" title={s} />;
   if (/suspensa|suspend/.test(sl))      return <span className="inline-block h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" title={s} />;
   if (/encerrada|anulada|revogada|cancelada/.test(sl)) return <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-400" title={s} />;
-  return <span className="inline-block h-1.5 w-1.5 rounded-full bg-violet-400" title={s} />;
+  return <span className="inline-block h-1.5 w-1.5 rounded-full bg-blue-400" title={s} />;
 }
 
 function LineRow({ op, rank, onClick, active, favorited, onToggleFav, inCompare, onToggleCompare, opId, crmStatus, onCycleCrm, density }: {
@@ -385,7 +385,7 @@ function LineRow({ op, rank, onClick, active, favorited, onToggleFav, inCompare,
           : "hover:bg-gradient-to-r hover:from-[var(--panel2)] hover:to-transparent hover:border-l-2 hover:border-l-[var(--primary)]/50",
         crm.value === "interesse" ? "border-l-2 border-l-sky-400" :
         crm.value === "proposta"  ? "border-l-2 border-l-amber-400" :
-        crm.value === "ganho"     ? "border-l-2 border-l-emerald-400" :
+        crm.value === "ganho"     ? "border-l-2 border-l-green-400" :
         crm.value === "perdido"   ? "border-l-2 border-l-red-400" : "",
       )}
     >
@@ -436,12 +436,12 @@ function LineRow({ op, rank, onClick, active, favorited, onToggleFav, inCompare,
               </span>
             )}
             {isTop && (
-              <span className="inline-flex items-center gap-0.5 rounded border border-[rgba(139,92,246,.4)] bg-[var(--panel-primary)] px-1.5 py-0 text-[10px] font-black text-[var(--primary)]">
+              <span className="inline-flex items-center gap-0.5 rounded border border-[rgba(88,166,255,.4)] bg-[var(--panel-primary)] px-1.5 py-0 text-[10px] font-black text-[var(--primary)]">
                 <Zap className="h-2.5 w-2.5" /> Top
               </span>
             )}
             {op.tipo_beneficio && /ME|EPP/i.test(op.tipo_beneficio) && (
-              <span className="inline-flex items-center rounded-full border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0 text-[10px] font-bold text-emerald-400">
+              <span className="inline-flex items-center rounded-full border border-green-500/40 bg-green-500/10 px-1.5 py-0 text-[10px] font-bold text-green-400">
                 ME/EPP
               </span>
             )}
@@ -516,7 +516,7 @@ function LineRow({ op, rank, onClick, active, favorited, onToggleFav, inCompare,
               className={cn(
                 "p-1 rounded transition-colors",
                 inCompare
-                  ? "text-violet-400"
+                  ? "text-blue-400"
                   : "opacity-0 group-hover:opacity-70 hover:opacity-100 text-[var(--muted)]"
               )}
             >
@@ -565,7 +565,7 @@ function CopyButton({ value, onCopy }: { value: string; onCopy?: () => void }) {
       onClick={copy}
       className="flex items-center gap-1.5 rounded-lg border border-[var(--line)] bg-[var(--panel2)] px-2.5 py-1.5 text-xs font-bold text-[var(--muted)] transition-colors hover:border-[var(--primary)] hover:text-[var(--primary)]"
     >
-      {copied ? <Check className="h-3 w-3 text-emerald-400" /> : <Copy className="h-3 w-3" />}
+      {copied ? <Check className="h-3 w-3 text-green-400" /> : <Copy className="h-3 w-3" />}
       {copied ? "Copiado!" : "Copiar ID"}
     </button>
   );
@@ -700,7 +700,7 @@ function ItensTab({ itens, loading, error }: { itens: ItemContratacao[]; loading
                 </span>
               )}
               {item.tipoBeneficioNome && /ME|EPP/i.test(item.tipoBeneficioNome) && (
-                <span className="rounded-full border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0 text-[10px] font-extrabold text-emerald-400">
+                <span className="rounded-full border border-green-500/40 bg-green-500/10 px-1.5 py-0 text-[10px] font-extrabold text-green-400">
                   ME/EPP
                 </span>
               )}
@@ -789,7 +789,7 @@ function DetalhePanel({
               )}
               <PrazoBadge iso={dataEncerramento} />
               {tipoBeneficio && /ME|EPP/i.test(tipoBeneficio) && (
-                <span className="inline-flex rounded-full border border-emerald-500/40 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-extrabold text-emerald-400">ME/EPP</span>
+                <span className="inline-flex rounded-full border border-green-500/40 bg-green-500/10 px-2 py-0.5 text-[10px] font-extrabold text-green-400">ME/EPP</span>
               )}
             </div>
             {/* Objeto */}
@@ -830,15 +830,15 @@ function DetalhePanel({
           </div>
           {/* Score */}
           {score != null && (
-            <div className="shrink-0 flex flex-col items-center gap-1 bg-[var(--panel-primary)] rounded-xl px-3 py-2 border border-[rgba(139,92,246,.25)]">
+            <div className="shrink-0 flex flex-col items-center gap-1 bg-[var(--panel-primary)] rounded-xl px-3 py-2 border border-[rgba(88,166,255,.25)]">
               <span className={cn("text-xl font-black tabular-nums leading-none",
-                score >= 70 ? "text-[var(--primary)]" : score >= 40 ? "text-violet-400" : "text-[var(--muted)]")}>
+                score >= 70 ? "text-[var(--primary)]" : score >= 40 ? "text-blue-400" : "text-[var(--muted)]")}>
                 {score}
               </span>
               <div className="h-1 w-10 overflow-hidden rounded-full bg-[var(--panel2)]">
                 <div
                   className={cn("h-full rounded-full transition-all",
-                    score >= 70 ? "bg-[var(--primary)]" : score >= 40 ? "bg-violet-400" : "bg-[var(--muted)]")}
+                    score >= 70 ? "bg-[var(--primary)]" : score >= 40 ? "bg-blue-400" : "bg-[var(--muted)]")}
                   style={{ width: `${Math.min(score, 100)}%` }}
                 />
               </div>
@@ -968,7 +968,7 @@ function DetalhePanel({
                         <>
                           <p className="text-[11px] font-semibold text-[var(--text)]">{tipoBeneficio || "—"}</p>
                           {tipoBeneficio && /ME|EPP/i.test(tipoBeneficio) && (
-                            <span className="inline-flex rounded-full border border-emerald-500/40 bg-emerald-500/10 px-1.5 py-0 text-[10px] font-extrabold text-emerald-400">ME/EPP</span>
+                            <span className="inline-flex rounded-full border border-green-500/40 bg-green-500/10 px-1.5 py-0 text-[10px] font-extrabold text-green-400">ME/EPP</span>
                           )}
                         </>
                       )}
@@ -1015,7 +1015,7 @@ function DetalhePanel({
                 Itens do processo
               </span>
               {itens.length > 0 && (
-                <span className="rounded-full border border-[rgba(139,92,246,.3)] bg-[var(--panel-primary)] px-2 py-0.5 text-[10px] font-extrabold text-[var(--primary)]">
+                <span className="rounded-full border border-[rgba(88,166,255,.3)] bg-[var(--panel-primary)] px-2 py-0.5 text-[10px] font-extrabold text-[var(--primary)]">
                   {itens.length} ite{itens.length !== 1 ? "ns" : "m"}
                 </span>
               )}
@@ -1157,7 +1157,7 @@ function PremiumFilterBar({
           className={cn(
             "flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors",
             active > 0
-              ? "border-[rgba(139,92,246,.4)] bg-[var(--panel-primary)] text-[var(--primary)]"
+              ? "border-[rgba(88,166,255,.4)] bg-[var(--panel-primary)] text-[var(--primary)]"
               : "border-[var(--line)] text-[var(--muted)] hover:text-[var(--text)]"
           )}
         >
@@ -1501,7 +1501,7 @@ export function RadarPage() {
               className={cn(
                 "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-bold transition-colors",
                 hideEncerradas
-                  ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-400"
+                  ? "border-green-500/40 bg-green-500/10 text-green-400"
                   : "border-[var(--line)] text-[var(--muted)] hover:text-[var(--text)]"
               )}
             >
@@ -1526,8 +1526,8 @@ export function RadarPage() {
 
             {/* CRM summary */}
             {Object.keys(crmCounts).length > 0 && (
-              <div className="flex items-center gap-1.5 rounded-lg border border-violet-400/40 bg-violet-400/10 px-2.5 py-1.5 text-xs font-bold text-violet-400">
-                <span className="inline-block h-2 w-2 rounded-full bg-violet-400" />
+              <div className="flex items-center gap-1.5 rounded-lg border border-blue-400/40 bg-blue-400/10 px-2.5 py-1.5 text-xs font-bold text-blue-400">
+                <span className="inline-block h-2 w-2 rounded-full bg-blue-400" />
                 {Object.values(crmCounts).reduce((a, b) => a + b, 0)} CRM
               </div>
             )}
@@ -1539,7 +1539,7 @@ export function RadarPage() {
               className={cn(
                 "flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-bold transition-colors",
                 density === "comfortable"
-                  ? "border-[rgba(139,92,246,.4)] bg-[var(--panel-primary)] text-[var(--primary)]"
+                  ? "border-[rgba(88,166,255,.4)] bg-[var(--panel-primary)] text-[var(--primary)]"
                   : "border-[var(--line)] text-[var(--muted)] hover:text-[var(--text)]"
               )}
             >
@@ -1565,7 +1565,7 @@ export function RadarPage() {
                 className={cn(
                   "flex items-center justify-center h-8 w-8 rounded-lg border transition-colors",
                   novasCount > 0
-                    ? "border-[rgba(139,92,246,.4)] bg-[var(--panel-primary)] text-[var(--primary)]"
+                    ? "border-[rgba(88,166,255,.4)] bg-[var(--panel-primary)] text-[var(--primary)]"
                     : "border-[var(--line)] text-[var(--muted)] hover:text-[var(--text)]"
                 )}
               >
@@ -1598,7 +1598,7 @@ export function RadarPage() {
                 className={cn(
                   "inline-flex items-center rounded border px-2 py-0.5 text-[10px] font-bold",
                   p.peso >= 2
-                    ? "border-[rgba(139,92,246,.4)] bg-[var(--panel-primary)] text-[var(--primary)]"
+                    ? "border-[rgba(88,166,255,.4)] bg-[var(--panel-primary)] text-[var(--primary)]"
                     : "border-[var(--line)] bg-[var(--panel2)] text-[var(--muted)]"
                 )}
               >
@@ -1636,7 +1636,7 @@ export function RadarPage() {
                 className={cn(
                   "rounded border px-2.5 py-1 text-xs font-bold transition-colors whitespace-nowrap",
                   active
-                    ? "border-[rgba(139,92,246,.4)] bg-[var(--panel-primary)] text-[var(--primary)]"
+                    ? "border-[rgba(88,166,255,.4)] bg-[var(--panel-primary)] text-[var(--primary)]"
                     : "border-[var(--line)] bg-[var(--panel2)] text-[var(--muted)] hover:text-[var(--text)]"
                 )}
               >
@@ -1645,7 +1645,7 @@ export function RadarPage() {
             );
           })}
           {(localFilters.valorMin || localFilters.valorMax) && !FAIXAS_VALOR.some((f) => Number(localFilters.valorMin || 0) === f.min && (f.max === Infinity ? !localFilters.valorMax : Number(localFilters.valorMax || Infinity) === f.max)) && (
-            <span className="rounded border border-[rgba(139,92,246,.4)] bg-[var(--panel-primary)] px-2.5 py-1 text-xs font-bold text-[var(--primary)]">
+            <span className="rounded border border-[rgba(88,166,255,.4)] bg-[var(--panel-primary)] px-2.5 py-1 text-xs font-bold text-[var(--primary)]">
               {localFilters.valorMin ? `≥ R$${Number(localFilters.valorMin).toLocaleString("pt-BR")}` : ""}
               {localFilters.valorMin && localFilters.valorMax ? " – " : ""}
               {localFilters.valorMax ? `≤ R$${Number(localFilters.valorMax).toLocaleString("pt-BR")}` : ""}
@@ -1817,7 +1817,7 @@ export function RadarPage() {
                   <button
                     onClick={loadMore}
                     disabled={loading}
-                    className="flex items-center gap-1.5 rounded-lg border border-[var(--line)] bg-[var(--panel2)] px-4 py-1.5 text-xs font-bold text-[var(--muted)] hover:text-[var(--primary)] hover:border-[rgba(139,92,246,.4)] disabled:opacity-50 transition-colors"
+                    className="flex items-center gap-1.5 rounded-lg border border-[var(--line)] bg-[var(--panel2)] px-4 py-1.5 text-xs font-bold text-[var(--muted)] hover:text-[var(--primary)] hover:border-[rgba(88,166,255,.4)] disabled:opacity-50 transition-colors"
                   >
                     {loading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <ChevronRight className="h-3.5 w-3.5" />}
                     {loading ? "Carregando..." : "Carregar mais"}
@@ -1870,15 +1870,15 @@ export function RadarPage() {
 
       {/* ── Barra de Comparação ── */}
       {compareList.length > 0 && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-2xl border border-violet-400/40 bg-[var(--panel)] px-4 py-2.5 shadow-2xl shadow-black/40 backdrop-blur">
-          <GitCompare className="h-4 w-4 text-violet-400 shrink-0" />
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-3 rounded-2xl border border-blue-400/40 bg-[var(--panel)] px-4 py-2.5 shadow-2xl shadow-black/40 backdrop-blur">
+          <GitCompare className="h-4 w-4 text-blue-400 shrink-0" />
           <span className="text-xs font-bold text-[var(--text)]">
             {compareList.length} selecionada{compareList.length !== 1 ? "s" : ""}
           </span>
           <span className="text-[10px] text-[var(--muted)]">(máx. 3)</span>
           <Link
             to={`/comparar?ids=${compareList.map(encodeURIComponent).join(",")}`}
-            className="rounded-lg bg-violet-500/20 border border-violet-400/40 px-3 py-1 text-xs font-extrabold text-violet-300 hover:opacity-80 transition-opacity"
+            className="rounded-lg bg-blue-500/20 border border-blue-400/40 px-3 py-1 text-xs font-extrabold text-violet-300 hover:opacity-80 transition-opacity"
           >
             Comparar →
           </Link>
