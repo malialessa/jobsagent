@@ -584,16 +584,70 @@ app.get('/healthz', (_req, res) => res.status(200).send('ok'));
 // Rotas Públicas
 // ── Helper: filtros comuns ─────────────────────────────────────────────────
 function applyCommonFilters(clauses: string[], params: Record<string, any>, q: any, uf: any, modalidade?: any, valor_min?: any, valor_max?: any, prazo_max?: any, beneficio?: any, situacao?: any) {
-        if (uf && typeof uf === 'string' && uf.trim()) { clauses.push("uf = @uf"); params.uf = uf.trim().toUpperCase(); }
-        if (q && typeof q === 'string' && q.trim()) { clauses.push("LOWER(objeto_compra) LIKE LOWER(@q)"); params.q = `%${q.trim()}%`; }
-        if (modalidade && typeof modalidade === 'string' && modalidade.trim()) { clauses.push("LOWER(modalidade_nome) LIKE LOWER(@modalidade)"); params.modalidade = `%${modalidade.trim().replace(/_/g,' ')}%`; }
-        const vm = Number(valor_min); if (!isNaN(vm) && vm > 0) { clauses.push("valor_total_estimado >= @valor_min"); params.valor_min = vm; }
-        const vx = Number(valor_max); if (!isNaN(vx) && vx > 0) { clauses.push("(valor_total_estimado IS NULL OR valor_total_estimado <= @valor_max)"); params.valor_max = vx; }
-        const pm = Number(prazo_max); if (!isNaN(pm) && pm > 0) { clauses.push("TIMESTAMP_DIFF(data_encerramento_proposta, CURRENT_TIMESTAMP(), DAY) BETWEEN 0 AND @prazo_max"); params.prazo_max = pm; }
-        if (beneficio === 'me_epp') { clauses.push("(tipo_beneficio LIKE '%ME%' OR tipo_beneficio LIKE '%EPP%')"); }
-        else if (beneficio === 'sem') { clauses.push("(tipo_beneficio IS NULL OR (tipo_beneficio NOT LIKE '%ME%' AND tipo_beneficio NOT LIKE '%EPP%'))"); }
-        if (situacao === 'ativa') { clauses.push("(LOWER(situacao_nome) LIKE '%aberta%' OR LOWER(situacao_nome) LIKE '%ativa%' OR LOWER(situacao_nome) LIKE '%publicad%')"); }
-        else if (situacao === 'suspensa') { clauses.push("LOWER(situacao_nome) LIKE '%suspensa%'"); }
+        // UF: suporta múltiplas separadas por vírgula (ex: ?uf=SP,RJ,MG)
+        if (uf && typeof uf === 'string' && uf.trim()) {
+                const ufs = uf.split(',').map(u => u.trim().toUpperCase()).filter(u => u.length === 2);
+                if (ufs.length === 1) {
+                        clauses.push("uf = @uf");
+                        params.uf = ufs[0];
+                } else if (ufs.length > 1) {
+                        clauses.push("uf IN UNNEST(@ufs)");
+                        params.ufs = ufs;
+                }
+        }
+        
+        // Busca textual no objeto de compra
+        if (q && typeof q === 'string' && q.trim()) {
+                clauses.push("LOWER(objeto_compra) LIKE LOWER(@q)");
+                params.q = `%${q.trim()}%`;
+        }
+        
+        // Modalidade: suporta múltiplas separadas por vírgula
+        if (modalidade && typeof modalidade === 'string' && modalidade.trim()) {
+                const modalidades = modalidade.split(',').map(m => m.trim().replace(/_/g, ' ').toLowerCase());
+                if (modalidades.length === 1) {
+                        clauses.push("LOWER(modalidade_nome) LIKE LOWER(@modalidade)");
+                        params.modalidade = `%${modalidades[0]}%`;
+                } else if (modalidades.length > 1) {
+                        const modalidadeClauses = modalidades.map((_, i) => `LOWER(modalidade_nome) LIKE LOWER(@modalidade${i})`);
+                        clauses.push(`(${modalidadeClauses.join(' OR ')})`);
+                        modalidades.forEach((m, i) => params[`modalidade${i}`] = `%${m}%`);
+                }
+        }
+        
+        // Faixa de valor
+        const vm = Number(valor_min);
+        if (!isNaN(vm) && vm > 0) {
+                clauses.push("valor_total_estimado >= @valor_min");
+                params.valor_min = vm;
+        }
+        
+        const vx = Number(valor_max);
+        if (!isNaN(vx) && vx > 0) {
+                clauses.push("(valor_total_estimado IS NULL OR valor_total_estimado <= @valor_max)");
+                params.valor_max = vx;
+        }
+        
+        // Prazo máximo (dias até encerramento)
+        const pm = Number(prazo_max);
+        if (!isNaN(pm) && pm > 0) {
+                clauses.push("TIMESTAMP_DIFF(data_encerramento_proposta, CURRENT_TIMESTAMP(), DAY) BETWEEN 0 AND @prazo_max");
+                params.prazo_max = pm;
+        }
+        
+        // Benefício ME/EPP
+        if (beneficio === 'me_epp') {
+                clauses.push("(tipo_beneficio LIKE '%ME%' OR tipo_beneficio LIKE '%EPP%')");
+        } else if (beneficio === 'sem') {
+                clauses.push("(tipo_beneficio IS NULL OR (tipo_beneficio NOT LIKE '%ME%' AND tipo_beneficio NOT LIKE '%EPP%'))");
+        }
+        
+        // Situação da licitação
+        if (situacao === 'ativa') {
+                clauses.push("(LOWER(situacao_nome) LIKE '%aberta%' OR LOWER(situacao_nome) LIKE '%ativa%' OR LOWER(situacao_nome) LIKE '%publicad%')");
+        } else if (situacao === 'suspensa') {
+                clauses.push("LOWER(situacao_nome) LIKE '%suspensa%'");
+        }
 }
 
 app.get('/getOportunidades', async (req, res) => {
@@ -645,21 +699,72 @@ app.get('/getScoredOportunidades', userAuthMiddleware, userPlanMiddleware, oport
         try {
                 const uid = req.uid!;
                 const { uf, q, modalidade, valor_min, valor_max, prazo_max, beneficio, situacao, limit: limitStr, offset: offsetStr } = req.query;
-                const limit = Math.min(parseInt(limitStr as string) || 21, 100); // cap em 100 por segurança
+                const limit = Math.min(parseInt(limitStr as string) || 50, 200); // aumentado: cap em 200, default 50
                 const offset = parseInt(offsetStr as string) || 0;
+                
+                // Build base query
                 let query = `SELECT * FROM \`${GCP_PROJECT_ID}.${DATASET_CORE}.${TABLE_FUNCTION_SCORED}\`(@cliente_id)`;
                 const whereClauses: string[] = [];
                 const queryParams: Record<string, any> = { cliente_id: uid };
+                
                 applyCommonFilters(whereClauses, queryParams, q, uf, modalidade, valor_min, valor_max, prazo_max, beneficio, situacao);
+                
                 if (whereClauses.length > 0) {
                         query = `SELECT * FROM (${query}) AS scored_ops WHERE ${whereClauses.join(" AND ")}`;
                 }
+                
+                // Count total (para X-Total-Count header)
+                const countQuery = whereClauses.length > 0
+                        ? `SELECT COUNT(*) as total FROM (SELECT * FROM \`${GCP_PROJECT_ID}.${DATASET_CORE}.${TABLE_FUNCTION_SCORED}\`(@cliente_id)) AS scored_ops WHERE ${whereClauses.join(" AND ")}`
+                        : `SELECT COUNT(*) as total FROM \`${GCP_PROJECT_ID}.${DATASET_CORE}.${TABLE_FUNCTION_SCORED}\`(@cliente_id)`;
+                
+                const countParams = { ...queryParams };
+                delete countParams.limit;
+                delete countParams.offset;
+                
+                const [countRows] = await bq.query({ query: countQuery, location: BIGQUERY_LOCATION, params: countParams });
+                const total = parseInt(countRows[0]?.total || '0');
+                
+                // Data query com paginação
                 query += " ORDER BY score_oportunidade DESC LIMIT @limit OFFSET @offset";
                 queryParams.limit = limit;
                 queryParams.offset = offset;
+                
                 const [rows] = await bq.query({ query, location: BIGQUERY_LOCATION, params: queryParams });
-                const nextOffset = rows.length === limit ? offset + limit : null;
-                res.status(200).json({ items: rows.map(serializeBqRow), nextOffset, plano: req.planInfo?.plano || 'free' });
+                
+                // Telemetria: log filtros aplicados
+                const filtrosAplicados = { uf, q, modalidade, valor_min, valor_max, prazo_max, beneficio, situacao };
+                const filtrosAtivos = Object.entries(filtrosAplicados).filter(([_, v]) => v !== undefined).map(([k]) => k);
+                
+                if (filtrosAtivos.length > 0) {
+                        await bq.dataset(DATASET_LOG).table('audit_user_actions').insert([{
+                                event_id: randomUUID(),
+                                tenant_id: uid,
+                                acao: 'filtro_aplicado',
+                                detalhes: JSON.stringify({ filtros: filtrosAplicados, total_resultados: total, filtros_ativos: filtrosAtivos }),
+                                criado_em: new Date().toISOString(),
+                        }]).catch(err => logger.warn('Failed to log filtro_aplicado', { error: err.message }));
+                }
+                
+                // Response com headers e metadados
+                res.set('X-Total-Count', total.toString());
+                res.set('X-Limit', limit.toString());
+                res.set('X-Offset', offset.toString());
+                
+                const nextOffset = rows.length === limit && (offset + limit) < total ? offset + limit : null;
+                
+                res.status(200).json({ 
+                        items: rows.map(serializeBqRow), 
+                        pagination: {
+                                total,
+                                limit,
+                                offset,
+                                has_next: nextOffset !== null,
+                                next_offset: nextOffset
+                        },
+                        filters_applied: filtrosAplicados,
+                        plano: req.planInfo?.plano || 'free' 
+                });
         } catch (error: any) {
                 await logErrorToBigQuery({ funcao_ou_componente: "getScoredOportunidades", cliente_id: req.uid, mensagem: error.message, stack_trace: error.stack, contexto: JSON.stringify({ reqQuery: req.query }) });
                 res.status(500).json({ message: 'Erro interno ao processar o ranking.' });
@@ -2026,6 +2131,59 @@ app.get('/countNovas', userAuthMiddleware, async (req, res) => {
                 return res.json({ count: 0 });
         }
 });
+
+// --- ENDPOINTS DE TELEMETRIA (SPRINT 3) ---
+
+// POST /log/view - Registra visualização de oportunidade
+app.post('/log/view', userAuthMiddleware, async (req, res) => {
+        try {
+                const { id_pncp, score } = req.body;
+                if (!id_pncp) {
+                        return res.status(400).json({ message: 'id_pncp é obrigatório' });
+                }
+                
+                await bq.dataset(DATASET_LOG).table('audit_user_actions').insert([{
+                        event_id: randomUUID(),
+                        tenant_id: req.uid,
+                        acao: 'oportunidade_visualizada',
+                        detalhes: JSON.stringify({ id_pncp, score, timestamp: Date.now() }),
+                        criado_em: new Date().toISOString(),
+                }]);
+                
+                return res.status(204).send();
+        } catch (error: any) {
+                logger.error('Erro ao registrar visualização', { error: error.message, uid: req.uid });
+                return res.status(500).json({ message: 'Erro ao registrar evento' });
+        }
+});
+
+// POST /log/share - Registra compartilhamento de URL
+app.post('/log/share', userAuthMiddleware, async (req, res) => {
+        try {
+                const { url } = req.body;
+                if (!url) {
+                        return res.status(400).json({ message: 'url é obrigatória' });
+                }
+                
+                const urlObj = new URL(url);
+                const params = Object.fromEntries(urlObj.searchParams.entries());
+                
+                await bq.dataset(DATASET_LOG).table('audit_user_actions').insert([{
+                        event_id: randomUUID(),
+                        tenant_id: req.uid,
+                        acao: 'url_compartilhada',
+                        detalhes: JSON.stringify({ url, params, timestamp: Date.now() }),
+                        criado_em: new Date().toISOString(),
+                }]);
+                
+                return res.status(204).send();
+        } catch (error: any) {
+                logger.error('Erro ao registrar compartilhamento', { error: error.message, uid: req.uid });
+                return res.status(500).json({ message: 'Erro ao registrar evento' });
+        }
+});
+
+// --- EXPORTAÇÃO DA CLOUD FUNCTION ---
 
 const root = express();
 root.use('/api', app);
