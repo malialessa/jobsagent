@@ -274,7 +274,10 @@ function TableSkeleton() {
   return (
     <div className="divide-y divide-[var(--line)]">
       {Array.from({ length: 6 }).map((_, i) => (
-        <div key={i} className="grid grid-cols-12 items-center gap-4 px-4 py-3">
+        <div key={i} className="grid grid-cols-12 items-center gap-4 px-4 py-3 relative overflow-hidden">
+          {/* Shimmer overlay */}
+          <div className="absolute inset-0 -translate-x-full animate-shimmer bg-gradient-to-r from-transparent via-white/5 to-transparent" 
+               style={{ animationDelay: `${i * 0.1}s` }} />
           <Sk className="col-span-1 h-4 w-4" />
           <div className="col-span-6 space-y-2">
             <Sk className="h-3.5 w-full" />
@@ -1759,16 +1762,25 @@ export function RadarPage() {
               </Button>
             </div>
           ) : items.length === 0 ? (
-            <div className="flex flex-col items-center gap-3 py-16 text-center">
-              <Search className="h-8 w-8 text-[var(--muted)] opacity-40" />
-              <p className="text-sm font-bold text-[var(--text)]">Nenhuma oportunidade encontrada</p>
-              <p className="text-xs text-[var(--muted)]">Não há oportunidades que correspondam aos filtros selecionados.</p>
+            <div className="flex flex-col items-center gap-4 py-20 text-center">
+              <div className="relative">
+                <Search className="h-12 w-12 text-[var(--primary)] opacity-30 empty-state-icon" />
+                {/* Glow effect */}
+                <div className="absolute inset-0 blur-xl bg-[var(--primary)] opacity-10 rounded-full" />
+              </div>
+              <div className="space-y-2">
+                <p className="text-base font-bold text-[var(--text)]">Nenhuma oportunidade encontrada</p>
+                <p className="text-sm text-[var(--muted)] max-w-md">
+                  Não há oportunidades que correspondam aos filtros selecionados.
+                  Tente ajustar seus critérios de busca.
+                </p>
+              </div>
               <button
                 onClick={() => {
                   setSearchParams({}, { replace: true });
                   setLocalFilters({ q: "", uf: "", modalidade: "", prazo: "", valorMin: "", valorMax: "", beneficio: "", situacao: "" });
                 }}
-                className="mt-1 rounded-lg border border-[var(--line)] bg-[var(--panel2)] px-4 py-1.5 text-xs font-bold text-[var(--muted)] hover:text-[var(--text)] transition-colors"
+                className="mt-2 rounded-lg border border-[var(--primary)]/20 bg-[var(--primary)]/10 px-5 py-2 text-sm font-bold text-[var(--primary)] hover:bg-[var(--primary)]/20 hover:border-[var(--primary)]/40 transition-all duration-200 hover:scale-105"
               >
                 Limpar todos os filtros
               </button>
@@ -1780,40 +1792,45 @@ export function RadarPage() {
                   const opId = op.id_pncp ?? op.numero_controle_pncp ?? String(i);
                   const isActive = !!opId && opId === selectedId;
                   return (
-                    <LineRow
+                    <div 
                       key={opId}
-                      op={op}
-                      opId={opId}
-                      rank={i + 1}
-                      active={isActive}
-                      density={density}
-                      onClick={() => {
-                        const newState = isActive ? null : op;
-                        setSelected(newState);
-                        // Telemetria: registrar visualização quando abre detalhe
-                        if (newState && opId) {
-                          api.logView(opId).catch(() => {});
-                        }
-                      }}
-                      favorited={favoritos.has(opId)}
-                      onToggleFav={(e, id) => { e.stopPropagation(); toggleFav(id); }}
-                      inCompare={compareList.includes(opId)}
-                      onToggleCompare={(e, id) => {
-                        e.stopPropagation();
-                        setCompareList((prev) =>
-                          prev.includes(id)
-                            ? prev.filter((x) => x !== id)
-                            : prev.length < 3 ? [...prev, id] : prev
-                        );
-                      }}
-                      crmStatus={crmStatuses[opId] ?? ""}
-                      onCycleCrm={(e, id) => { e.stopPropagation(); cycleCrm(id); }}
-                    />
+                      className="stagger-item"
+                      style={{ animationDelay: `${Math.min(i * 0.03, 0.6)}s` }}
+                    >
+                      <LineRow
+                        op={op}
+                        opId={opId}
+                        rank={i + 1}
+                        active={isActive}
+                        density={density}
+                        onClick={() => {
+                          const newState = isActive ? null : op;
+                          setSelected(newState);
+                          // Telemetria: registrar visualização quando abre detalhe
+                          if (newState && opId) {
+                            api.logView(opId).catch(() => {});
+                          }
+                        }}
+                        favorited={favoritos.has(opId)}
+                        onToggleFav={(e, id) => { e.stopPropagation(); toggleFav(id); }}
+                        inCompare={compareList.includes(opId)}
+                        onToggleCompare={(e, id) => {
+                          e.stopPropagation();
+                          setCompareList((prev) =>
+                            prev.includes(id)
+                              ? prev.filter((x) => x !== id)
+                              : prev.length < 3 ? [...prev, id] : prev
+                          );
+                        }}
+                        crmStatus={crmStatuses[opId] ?? ""}
+                        onCycleCrm={(e, id) => { e.stopPropagation(); cycleCrm(id); }}
+                      />
+                    </div>
                   );
                 })}
               </div>
               {hasMore && !planLimited && (
-                <div className="border-t border-[var(--line)] px-4 py-4 flex items-center gap-3">
+                <div className="border-t border-[var(--line)] px-4 py-4 flex items-center justify-between gap-3">
                   <button
                     onClick={loadMore}
                     disabled={loading}
@@ -1822,17 +1839,46 @@ export function RadarPage() {
                     {loading ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <ChevronRight className="h-3.5 w-3.5" />}
                     {loading ? "Carregando..." : "Carregar mais"}
                   </button>
-                  <span className="text-xs text-[var(--muted)] opacity-60">
-                    Mostrando {items.length} de muitas oportunidades disponíveis
-                  </span>
+                  <div className="flex flex-col items-end gap-1">
+                    <span className="text-xs font-bold text-[var(--text)] tabular-nums">
+                      {items.length.toLocaleString('pt-BR')} oportunidades
+                    </span>
+                    {/* Progress bar visual */}
+                    <div className="h-1 w-32 overflow-hidden rounded-full bg-[var(--line)]">
+                      <div 
+                        className="h-full rounded-full bg-gradient-to-r from-[var(--primary)] to-[var(--accent)] transition-all duration-500"
+                        style={{ width: `${Math.min((items.length / 500) * 100, 100)}%` }}
+                        title={`${items.length} carregadas de muitas disponíveis`}
+                      />
+                    </div>
+                    <span className="text-[10px] text-[var(--muted)] opacity-60">
+                      Mostrando primeiras {items.length}
+                    </span>
+                  </div>
                 </div>
               )}
-              {/* Hint de teclado */}
-              {items.length > 1 && (
-                <div className="border-t border-[var(--line)] px-4 py-2 flex justify-end">
-                  <span className="text-[10px] text-[var(--muted)] opacity-40">
-                    <span className="font-mono font-bold">J/K</span> navegar · <span className="font-mono font-bold">ESC</span> fechar
-                  </span>
+              {/* Floating keyboard shortcuts hint */}
+              {items.length > 3 && (
+                <div className="fixed bottom-6 right-6 z-30 float-hint">
+                  <div className="glass-panel rounded-xl px-4 py-2.5 shadow-xl">
+                    <div className="flex items-center gap-3 text-[11px]">
+                      <div className="flex items-center gap-1.5">
+                        <kbd className="px-1.5 py-0.5 rounded bg-[var(--panel2)] border border-[var(--line)] font-mono font-bold text-[10px] text-[var(--text)] shadow-sm">↑</kbd>
+                        <kbd className="px-1.5 py-0.5 rounded bg-[var(--panel2)] border border-[var(--line)] font-mono font-bold text-[10px] text-[var(--text)] shadow-sm">↓</kbd>
+                        <span className="text-[var(--muted)]">navegar</span>
+                      </div>
+                      <div className="h-3 w-px bg-[var(--line)]" />
+                      <div className="flex items-center gap-1.5">
+                        <kbd className="px-1.5 py-0.5 rounded bg-[var(--panel2)] border border-[var(--line)] font-mono font-bold text-[10px] text-[var(--text)] shadow-sm">Enter</kbd>
+                        <span className="text-[var(--muted)]">abrir</span>
+                      </div>
+                      <div className="h-3 w-px bg-[var(--line)]" />
+                      <div className="flex items-center gap-1.5">
+                        <kbd className="px-1.5 py-0.5 rounded bg-[var(--panel2)] border border-[var(--line)] font-mono font-bold text-[10px] text-[var(--text)] shadow-sm">Esc</kbd>
+                        <span className="text-[var(--muted)]">fechar</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </>

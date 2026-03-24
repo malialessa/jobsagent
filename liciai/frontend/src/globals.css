@@ -117,6 +117,101 @@
     -webkit-text-fill-color: transparent;
     background-clip: text;
   }
+  
+  /* Glassmorphism utilities */
+  .glass-panel {
+    background: rgba(33, 38, 45, 0.7);
+    backdrop-filter: blur(20px) saturate(180%);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 
+      0 8px 32px rgba(0, 0, 0, 0.15),
+      inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+  
+  .glass-panel-strong {
+    background: rgba(33, 38, 45, 0.85);
+    backdrop-filter: blur(24px) saturate(200%);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    box-shadow: 
+      0 12px 40px rgba(0, 0, 0, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  }
+  
+  /* Premium card with gradient glow */
+  .premium-card {
+    position: relative;
+    background: linear-gradient(135deg, var(--panel2), var(--panel));
+    border: 1px solid rgba(88, 166, 255, 0.15);
+    box-shadow: 
+      0 0 0 1px rgba(88, 166, 255, 0.05),
+      0 4px 12px rgba(88, 166, 255, 0.08);
+    transition: var(--transition-smooth);
+  }
+  
+  .premium-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(88, 166, 255, 0.25);
+    box-shadow: 
+      0 0 0 1px rgba(88, 166, 255, 0.15),
+      0 12px 24px rgba(88, 166, 255, 0.15);
+  }
+  
+  .premium-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(135deg, rgba(88, 166, 255, 0.1), transparent);
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+    border-radius: inherit;
+  }
+  
+  .premium-card:hover::before {
+    opacity: 1;
+  }
+  
+  /* Empty state pulse animation */
+  @keyframes emptyStatePulse {
+    0%, 100% { opacity: 0.4; transform: scale(1); }
+    50% { opacity: 0.6; transform: scale(1.05); }
+  }
+  
+  .empty-state-icon {
+    animation: emptyStatePulse 3s ease-in-out infinite;
+  }
+  
+  /* Stagger fade-in animation for list items */
+  @keyframes staggerFadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  .stagger-item {
+    animation: staggerFadeIn 0.4s ease-out backwards;
+  }
+  
+  /* Floating hint */
+  @keyframes floatIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+  
+  .float-hint {
+    animation: floatIn 0.3s ease-out;
+  }
   :root {
     --background: 0 0% 100%;
     --foreground: 0 0% 3.9%;
